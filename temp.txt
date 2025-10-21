@@ -1,0 +1,290 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'models/product.dart';
+import 'state/customer_app_state.dart';
+import 'product_detail_page.dart';
+import 'request_product_page.dart';
+
+class PharmacyProductsPage extends StatefulWidget {
+  const PharmacyProductsPage({
+    super.key,
+    required this.pharmacyId,
+    required this.pharmacyName,
+    required this.pharmacyEmail,
+  });
+
+  final String pharmacyId;
+  final String pharmacyName;
+  final String pharmacyEmail;
+
+  @override
+  State<PharmacyProductsPage> createState() => _PharmacyProductsPageState();
+}
+
+class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+  String _selectedCategory = 'All';
+
+  DatabaseReference get _productsRef =>
+      FirebaseDatabase.instance.ref('products');
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.pharmacyName),
+        actions: [
+          IconButton(
+            tooltip: 'Request unavailable product',
+            icon: const Icon(Icons.add_comment_outlined),
+            onPressed: () async {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RequestProductPage(
+                    pharmacyId: widget.pharmacyId,
+                    pharmacyName: widget.pharmacyName,
+                    customerEmail: user.email ?? '',
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search products... ',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+              ),
+              onChanged: (value) => setState(() => _query = value.trim()),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: StreamBuilder<DatabaseEvent>(
+                stream: _productsRef.onValue,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(child: Text('Unable to load products.'));
+                  }
+                  if (!snapshot.hasData ||
+                      snapshot.data?.snapshot.value == null) {
+                    return const Center(child: Text('No products available yet.'));
+                  }
+
+                  final raw = snapshot.data!.snapshot.value;
+                  final List<Product> products = [];
+
+                  if (raw is Map) {
+                    raw.forEach((key, value) {
+                      if (value is Map) {
+                        products.add(
+                          Product.fromMap(
+                            id: key.toString(),
+                            ownerId: widget.pharmacyId,
+                            data: Map<dynamic, dynamic>.from(value),
+                          ),
+                        );
+                      }
+                    });
+                  } else if (raw is List) {
+                    for (var i = 0; i < raw.length; i++) {
+                      final value = raw[i];
+                      if (value is Map) {
+                        products.add(
+                          Product.fromMap(
+                            id: i.toString(),
+                            ownerId: widget.pharmacyId,
+                            data: Map<dynamic, dynamic>.from(value),
+                          ),
+                        );
+                      }
+                    }
+                  }
+
+                  final categories = <String>{'All'}
+                    ..addAll(products.map((p) => p.category).where((c) => c.isNotEmpty));
+
+                  final filteredProducts = products.where((product) {
+                    final matchesQuery = _query.isEmpty
+                        ? true
+                        : product.name.toLowerCase().contains(_query.toLowerCase()) ||
+                            product.category.toLowerCase().contains(_query.toLowerCase());
+                    final matchesCategory = _selectedCategory == 'All'
+                        ? true
+                        : product.category == _selectedCategory;
+                    return matchesQuery && matchesCategory;
+                  }).toList()
+                    ..sort((a, b) => a.name.compareTo(b.name));
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 40,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: categories.map((category) {
+                            final isSelected = category == _selectedCategory;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(category),
+                                selected: isSelected,
+                                onSelected: (_) => setState(() => _selectedCategory = category),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: filteredProducts.isEmpty
+                            ? const Center(child: Text('No products match your filters.'))
+                            : GridView.builder(
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 0.72,
+                                ),
+                                itemCount: filteredProducts.length,
+                                itemBuilder: (context, index) {
+                                  final product = filteredProducts[index];
+                                  return _ProductCard(
+                                    product: product,
+                                    pharmacyName: widget.pharmacyName,
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  const _ProductCard({required this.product, required this.pharmacyName});
+
+  final Product product;
+  final String pharmacyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProductDetailPage(
+              product: product,
+              pharmacyName: pharmacyName,
+            ),
+          ),
+        );
+      },
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 3,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: product.imageUrl.isNotEmpty
+                      ? Image.network(product.imageUrl, fit: BoxFit.cover)
+                      : Container(
+                          color: Colors.blue.shade50,
+                          child: const Center(
+                            child: Icon(Icons.medical_services_outlined, size: 48),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                product.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text('${product.price.toStringAsFixed(2)} OMR'),
+              const Spacer(),
+              Consumer<CustomerAppState>(
+                builder: (context, state, _) {
+                  return ElevatedButton(
+                    onPressed: () {
+                      final success = state.addProductToCart(
+                        product,
+                        pharmacyName: pharmacyName,
+                      );
+                      final messenger = ScaffoldMessenger.of(context);
+                      if (!success) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Your cart contains items from another pharmacy. Please checkout or clear it first.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('${product.name} added to cart'),
+                          action: SnackBarAction(
+                            label: 'View cart',
+                            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('Add to cart'),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

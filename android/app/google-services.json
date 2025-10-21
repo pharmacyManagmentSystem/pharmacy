@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "63661939623",
+    "project_id": "pharm-e6550",
+    "storage_bucket": "pharm-e6550.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:63661939623:android:d5f00ff8f51e0ce0f83482",
+        "android_client_info": {
+          "package_name": "com.example.pharm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDusTKIHZaMoXtWBSlwZHRKL6wBH0JZ55M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
