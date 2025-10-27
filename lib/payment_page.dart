@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/database_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'state/customer_app_state.dart';
 
@@ -64,7 +65,18 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   @override
+  void dispose() {
+    _name.dispose();
+    _card.dispose();
+    _cvv.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Regex: only Latin letters and spaces
+    final nameReg = RegExp(r'^[A-Za-z ]+$');
+
     return Scaffold(
       appBar: AppBar(title: const Text('Payment details')),
       body: Padding(
@@ -74,15 +86,50 @@ class _PaymentPageState extends State<PaymentPage> {
           child: Column(children: [
             TextFormField(
               controller: _name,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Full name'),
-              validator: (v) => v == null || v.isEmpty ? 'Enter name' : null,
+              inputFormatters: [
+                // Allow only Latin letters and space while typing
+                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z\s]')),
+                LengthLimitingTextInputFormatter(50),
+              ],
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Enter name';
+                if (!nameReg.hasMatch(v.trim())) return 'Name must contain only letters and spaces';
+                return null;
+              },
+              // hide built-in counter
+              buildCounter: (
+                  BuildContext context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) =>
+              null,
             ),
             const SizedBox(height: 12),
             TextFormField(
               controller: _card,
               decoration: const InputDecoration(labelText: 'Card number'),
               keyboardType: TextInputType.number,
-              validator: (v) => v == null || v.length < 12 ? 'Invalid card' : null,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(16), // prevent more than 16 digits
+              ],
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Enter card number';
+                if (v.length != 16) return 'Card number must be exactly 16 digits';
+                final cardReg = RegExp(r'^\d{16}$');
+                if (!cardReg.hasMatch(v)) return 'Card number must contain only digits';
+                return null;
+              },
+              buildCounter: (
+                  BuildContext context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) =>
+              null,
             ),
             const SizedBox(height: 12),
             TextFormField(
@@ -90,7 +137,24 @@ class _PaymentPageState extends State<PaymentPage> {
               decoration: const InputDecoration(labelText: 'CVV'),
               keyboardType: TextInputType.number,
               obscureText: true,
-              validator: (v) => v == null || v.length < 3 ? 'Invalid CVV' : null,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(3), // prevent more than 3 digits
+              ],
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Enter CVV';
+                if (v.length != 3) return 'CVV must be exactly 3 digits';
+                final cvvReg = RegExp(r'^\d{3}$');
+                if (!cvvReg.hasMatch(v)) return 'CVV must contain only digits';
+                return null;
+              },
+              buildCounter: (
+                  BuildContext context, {
+                    required int currentLength,
+                    required bool isFocused,
+                    required int? maxLength,
+                  }) =>
+              null,
             ),
             const Spacer(),
             SizedBox(

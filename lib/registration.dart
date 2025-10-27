@@ -49,6 +49,7 @@ class _RegistrationState extends State<Registration> {
           MaterialPageRoute(
             builder: (context) => CustomerHome(
               onThemeChanged: widget.onThemeChanged,
+
               onLogout: () {
                 Navigator.pushAndRemoveUntil(
                   context,
@@ -118,6 +119,7 @@ class _RegistrationState extends State<Registration> {
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
+
                     decoration: const InputDecoration(
                       hintText: 'Phone Number',
                       border: OutlineInputBorder(),

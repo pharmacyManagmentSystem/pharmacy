@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -65,21 +65,14 @@ class _RequestProductPageState extends State<RequestProductPage> {
 
       // ✅ Upload image to Firebase Storage if one is selected
       if (_pickedImage != null) {
-        final storageRef = FirebaseStorage.instance.ref();
-        final imageRef = storageRef.child(
-          'product_requests/${widget.pharmacyId}/${DateTime.now().millisecondsSinceEpoch}_${_pickedImage!.name}',
-        );
-
         final file = File(_pickedImage!.path);
 
-        // Upload and wait for completion
-        final uploadTask = await imageRef.putFile(file);
-
-        if (uploadTask.state == TaskState.success) {
-          imageUrl = await imageRef.getDownloadURL();
-        } else {
-          throw Exception('Image upload failed.');
-        }
+        // Use StorageService to upload as Base64 to Realtime DB and get a data URL
+        final storageService = StorageService();
+        imageUrl = await storageService.uploadImageToDatabase(
+          file,
+          'product_requests_images/${widget.pharmacyId}',
+        );
       }
 
       // ✅ Save request data to Realtime Database

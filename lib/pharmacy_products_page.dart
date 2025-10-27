@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'models/product.dart';
 import 'product_detail_page.dart';
 import 'request_product_page.dart';
@@ -41,7 +42,16 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
   }
 
   Widget _buildProductImage(String path) {
-    if (path.startsWith('http')) {
+    if (path.startsWith('data:')) {
+      try {
+        final parts = path.split(',');
+        final base64Data = parts.length > 1 ? parts[1] : '';
+        final bytes = base64Decode(base64Data);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {
+        return const Icon(Icons.broken_image, size: 50, color: Colors.grey);
+      }
+    } else if (path.startsWith('http')) {
       return Image.network(
         path,
         fit: BoxFit.cover,

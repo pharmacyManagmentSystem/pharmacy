@@ -1,64 +1,87 @@
 import 'package:flutter/material.dart';
 import 'login.dart';
-import 'manage_pharmacy.dart';    // Create this file
-import 'manage_customers.dart';   // Create this file
-import 'manage_delivery.dart';    // Create this file
+import 'manage_pharmacy.dart';
+import 'manage_customers.dart';
+import 'manage_delivery.dart';
 
 class AdminHome extends StatelessWidget {
   final Function(bool) onThemeChanged;
-  const AdminHome({super.key,required this.onThemeChanged});
+  const AdminHome({super.key, required this.onThemeChanged});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFB3E5FC), // Baby blue background
       appBar: AppBar(
-        title: const Text("Admin Home"),
+        backgroundColor: const Color(0xFF0288D1), // White app bar
+        elevation: 4,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/pharmacy.jpg', // pharmacy logo
+              height: 40,
+              width: 40,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              "Admin Panel",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white, // Black text on white background
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.black),
             onPressed: () {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) =>  Login(onThemeChanged: onThemeChanged)),
+                MaterialPageRoute(
+                    builder: (context) => Login(onThemeChanged: onThemeChanged)),
               );
             },
           ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        padding: const EdgeInsets.all(20.0),
+        child: ListView(
           children: [
-            AdminButton(
+            AdminCard(
               title: "Manage Pharmacy",
-              icon: Icons.local_pharmacy,
+              imagePath: 'assets/manage_pharmacy.png',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ManagePharmacistPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const ManagePharmacistPage()),
                 );
               },
             ),
-            const SizedBox(height: 16),
-            AdminButton(
+            const SizedBox(height: 20),
+            AdminCard(
               title: "Manage Customers",
-              icon: Icons.people,
+              imagePath: 'assets/manage_customer.png',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ManageCustomersPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const ManageCustomersPage()),
                 );
               },
             ),
-            const SizedBox(height: 16),
-            AdminButton(
-              title: "Manage Delivery",
-              icon: Icons.delivery_dining,
+            const SizedBox(height: 20),
+            AdminCard(
+              title: "Manage Delivery Persons",
+              imagePath: 'assets/manage_delivery.png',
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ManageDeliveryPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const ManageDeliveryPage()),
                 );
               },
             ),
@@ -69,29 +92,55 @@ class AdminHome extends StatelessWidget {
   }
 }
 
-class AdminButton extends StatelessWidget {
+class AdminCard extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final String imagePath;
   final VoidCallback onTap;
 
-  const AdminButton({
+  const AdminCard({
     super.key,
     required this.title,
-    required this.icon,
+    required this.imagePath,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      icon: Icon(icon, size: 28),
-      label: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
-        child: Text(title, style: const TextStyle(fontSize: 18)),
-      ),
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size.fromHeight(50),
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        color: const Color(0xFF0288D1), // Blue card
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Image.asset(
+                  imagePath,
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

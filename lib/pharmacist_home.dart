@@ -1,9 +1,10 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'services/storage_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'login.dart';
@@ -11,7 +12,8 @@ import 'profile_page.dart';
 
 class PharmacistHome extends StatefulWidget {
   final Function(bool) onThemeChanged;
-  const PharmacistHome({super.key, required this.onThemeChanged});
+  final bool isDarkMode;
+  const PharmacistHome({super.key, required this.onThemeChanged, required this.isDarkMode});
 
   @override
   State<PharmacistHome> createState() => _PharmacistHomeState();
@@ -22,6 +24,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
   late DatabaseReference dbRef;
   final ImagePicker _picker = ImagePicker();
   String searchQuery = '';
+  late bool _isDarkMode;
 
   final List<String> categories = [
     'Baby and family care',
@@ -35,13 +38,31 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     'Other',
   ];
 
+  bool isDarkMode = false;
+
   @override
   void initState() {
     super.initState();
     dbRef = DatabaseService.instance.ref("products/${user!.uid}");
+    _isDarkMode = widget.isDarkMode;
   }
 
-  // -------- Add Product --------
+  Widget buildButton(String text, VoidCallback onPressed) {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+          foregroundColor: Colors.white,
+        ),
+        onPressed: onPressed,
+        child: Text(text, style: const TextStyle(fontSize: 16)),
+      ),
+    );
+  }
+
+  // ---------------- Add Product / Update / Delete / Show Dialog ----------------
   Future<void> addProduct(
       Map<String, dynamic> productData, {
         File? image,
@@ -50,7 +71,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     final productId = DateTime.now().millisecondsSinceEpoch.toString();
     String? imageUrl;
 
-    // Manual reference
     if (manualImageReference != null && manualImageReference.trim().isNotEmpty) {
       try {
         imageUrl = await _resolveManualImageReference(manualImageReference);
@@ -59,15 +79,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       }
     }
 
-    // Uploaded image
     if (image != null && await image.exists()) {
-      final storageRef =
-      FirebaseStorage.instance.ref().child('product_images/$productId.jpg');
-      await storageRef.putFile(image);
-      imageUrl = await storageRef.getDownloadURL();
+      final storageService = StorageService();
+      imageUrl = await storageService.uploadImageToDatabase(
+        image,
+        'product_images',
+      );
     }
 
-    // Default asset
     imageUrl ??= 'assets/pharmacy.jpg';
 
     productData['imageUrl'] = imageUrl;
@@ -78,7 +97,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     await dbRef.child(productId).set(productData);
   }
 
-  // -------- Update Product --------
   Future<void> updateProduct(
       String key,
       Map<String, dynamic> productData, {
@@ -89,7 +107,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       }) async {
     String? imageUrl;
 
-    // Manual reference
     if (manualImageReference != null && manualImageReference.trim().isNotEmpty) {
       try {
         imageUrl = await _resolveManualImageReference(manualImageReference);
@@ -98,15 +115,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       }
     }
 
-    // Uploaded image
     if (image != null && await image.exists()) {
-      final storageRef =
-      FirebaseStorage.instance.ref().child('product_images/$key.jpg');
-      await storageRef.putFile(image);
-      imageUrl = await storageRef.getDownloadURL();
+      final storageService = StorageService();
+      imageUrl = await storageService.uploadImageToDatabase(
+        image,
+        'product_images',
+      );
     }
 
-    // Keep old image or fallback to default
     imageUrl ??= (oldImageUrl.isNotEmpty ? oldImageUrl : 'assets/pharmacy.jpg');
 
     productData['imageUrl'] = imageUrl;
@@ -125,32 +141,18 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       return trimmed;
     }
 
-    final storage = FirebaseStorage.instance;
-    final candidates = <String>{trimmed};
-    if (!trimmed.contains('/')) {
-      candidates.add('product_images/$trimmed');
-      if (ownerId != null && ownerId.isNotEmpty) {
-        candidates.add('products/$ownerId/$trimmed');
-        candidates.add('$ownerId/$trimmed');
-      }
-    } else {
-      candidates.add(trimmed);
+    // If it's already an HTTP URL or a data URL, return it. Otherwise try assets.
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    if (trimmed.startsWith('data:')) {
+      return trimmed;
     }
 
-    for (final candidate in candidates) {
-      try {
-        final ref = storage.ref(candidate);
-        final url = await ref.getDownloadURL();
-        return url;
-      } catch (_) {
-        continue;
-      }
-    }
-
+    // Fallback: treat as asset or product image filename stored in assets
     return trimmed.startsWith('assets/') ? trimmed : 'assets/$trimmed';
   }
 
-  // -------- Delete Product --------
   Future<void> deleteProduct(String key) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -172,7 +174,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     }
   }
 
-  // -------- Add/Edit Dialog with Validation --------
   Future<void> showProductDialog({Map? product}) async {
     final _formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: product?['name'] ?? '');
@@ -422,35 +423,45 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         },
       ),
     );
-
-    // nameController.dispose();
-    // descriptionController.dispose();
-    // priceController.dispose();
-    // quantityController.dispose();
-    // imageReferenceController.dispose();
   }
 
-  // -------- Build UI --------
   @override
   Widget build(BuildContext context) {
+    Color backgroundColor = _isDarkMode ? Colors.grey[900]! : const Color(0xFFB3E5FC);
+    Color appBarColor = _isDarkMode ? Colors.grey[850]! : const Color(0xFF0288D1);
+    Color textColor = _isDarkMode ? Colors.white : Colors.black;
+
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text("Pharmacist Products"),
+        backgroundColor: appBarColor,
+        title: const Text(
+          "Pharmacist Products",
+          style: TextStyle(color: Colors.white),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person),
+            icon: const Icon(Icons.person, color: Colors.white),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      ProfilePage(onThemeChanged: widget.onThemeChanged),
+                  builder: (context) => ProfilePage(
+                    isDarkMode: _isDarkMode, // pass current dark mode
+                    onThemeChanged: (val) {
+                      setState(() {
+                        _isDarkMode = val; // update current page dark mode
+                      });
+                      widget.onThemeChanged(val); // notify app
+                    },
+                  ),
                 ),
               );
             },
           ),
+
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               Navigator.pushReplacement(
@@ -466,17 +477,28 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       ),
       body: Column(
         children: [
+          const SizedBox(height: 10),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: buildButton("Add New Product", () => showProductDialog()),
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
+              style: TextStyle(color: textColor),
+              decoration: InputDecoration(
+                fillColor: _isDarkMode ? Colors.grey[800] : Colors.white,
+                filled: true,
+                prefixIcon: const Icon(Icons.search),
                 hintText: "Search by name or category...",
-                border: OutlineInputBorder(),
+                hintStyle: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black45),
+                border: const OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => searchQuery = value),
             ),
           ),
+          const SizedBox(height: 10),
           Expanded(
             child: StreamBuilder(
               stream: dbRef.onValue,
@@ -509,7 +531,17 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       final imageUrl = product['imageUrl'] ?? 'assets/pharmacy.jpg';
                       Widget imageWidget;
 
-                      if (imageUrl.startsWith('assets/')) {
+                      if (imageUrl.startsWith('data:')) {
+                        try {
+                          final base64Data = imageUrl.split(',').length > 1 ? imageUrl.split(',')[1] : '';
+                          final bytes = base64Decode(base64Data);
+                          imageWidget = Image.memory(bytes,
+                              width: 50, height: 50, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image));
+                        } catch (_) {
+                          imageWidget = const Icon(Icons.broken_image);
+                        }
+                      } else if (imageUrl.startsWith('assets/')) {
                         imageWidget = Image.asset(imageUrl,
                             width: 50,
                             height: 50,
@@ -529,27 +561,33 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       }
 
                       return Card(
-                        margin: const EdgeInsets.all(8),
+                        color: _isDarkMode ? Colors.grey[800] : Colors.white,
+                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(
+                              color: _isDarkMode
+                                  ? Colors.blueGrey
+                                  : const Color(0xFF0288D1),
+                              width: 3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         child: ListTile(
                           leading: imageWidget,
-                          title: Text(product['name']),
+                          title: Text(product['name'], style: TextStyle(color: textColor)),
                           subtitle: Text(
-                              "Category: ${product['category']}\nPrice: ${product['price']}\nQuantity: ${product['quantity']}\nExpiry: ${product['expiryDate']}"),
+                              "Category: ${product['category']}\nPrice: ${product['price']}\nQuantity: ${product['quantity']}\nExpiry: ${product['expiryDate']}",
+                              style: TextStyle(color: textColor)),
                           isThreeLine: true,
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon:
-                                const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () =>
-                                    showProductDialog(product: product),
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () => showProductDialog(product: product),
                               ),
                               IconButton(
-                                icon:
-                                const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () =>
-                                    deleteProduct(product['key']),
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => deleteProduct(product['key']),
                               ),
                             ],
                           ),
@@ -558,16 +596,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                     },
                   );
                 } else {
-                  return const Center(child: Text("No products found."));
+                  return Center(
+                      child: Text("No products found.",
+                          style: TextStyle(color: textColor)));
                 }
               },
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showProductDialog(),
-        child: const Icon(Icons.add),
       ),
     );
   }

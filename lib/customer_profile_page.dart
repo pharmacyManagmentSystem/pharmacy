@@ -160,6 +160,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           _email = data['email']?.toString() ?? user.email ?? '';
           _phone = data['phoneNumber']?.toString() ?? '';
           _address = data['address']?.toString() ?? '';
+          _darkMode = data['darkMode'] ?? false;
           _loading = false;
         });
       } else {
@@ -335,9 +336,16 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
               children: [
                 SwitchListTile.adaptive(
                   value: _darkMode,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() => _darkMode = value);
-                    widget.onThemeChanged(value);
+                    widget.onThemeChanged(value); // notify app
+
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      await DatabaseService.instance
+                          .ref('pharmacy/customers/${user.uid}')
+                          .update({'darkMode': value});
+                    }
                   },
                   title: const Text('Dark mode'),
                   subtitle: Text(

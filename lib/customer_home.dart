@@ -11,31 +11,45 @@ import 'models/order.dart';
 import 'widgets/order_card.dart';
 import 'state/customer_app_state.dart';
 import 'login.dart';
+
 class CustomerHome extends StatefulWidget {
   const CustomerHome({
     super.key,
     required this.onThemeChanged,
     required this.onLogout,
   });
+
   final Function(bool) onThemeChanged;
   final VoidCallback onLogout;
+
   @override
   State<CustomerHome> createState() => _CustomerHomeState();
 }
+
 class _CustomerHomeState extends State<CustomerHome> {
   int _currentIndex = 0;
+
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     final pages = <Widget>[
       PharmacyBrowser(onThemeChanged: widget.onThemeChanged),
       const CustomerCartPage(),
       const _OrdersTab(),
       CustomerProfilePage(onThemeChanged: widget.onThemeChanged),
     ];
+
     final titles = <String>['Pharmacies', 'Cart', 'Orders', 'Profile'];
+
     return Scaffold(
+      backgroundColor: isDarkMode ? Colors.grey[900] : const Color(0xFFB3E5FC),
       appBar: AppBar(
-        title: Text(titles[_currentIndex]),
+        backgroundColor: const Color(0xFF0288D1),
+        title: Text(
+          titles[_currentIndex],
+          style: const TextStyle(color: Colors.white),
+        ),
         actions: [
           if (_currentIndex != 1)
             Consumer<CustomerAppState>(
@@ -45,7 +59,7 @@ class _CustomerHomeState extends State<CustomerHome> {
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const Icon(Icons.shopping_cart_outlined),
+                      const Icon(Icons.shopping_cart_outlined, color: Colors.white),
                       if (count > 0)
                         Positioned(
                           right: -4,
@@ -74,12 +88,14 @@ class _CustomerHomeState extends State<CustomerHome> {
             ),
           IconButton(
             tooltip: 'Log out',
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
               if (!mounted) return;
               Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => Login(onThemeChanged: (bool ) {  },)),
+                MaterialPageRoute(
+                  builder: (context) => Login(onThemeChanged: (bool value) {}),
+                ),
               );
             },
           ),
@@ -96,6 +112,8 @@ class _CustomerHomeState extends State<CustomerHome> {
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
             type: BottomNavigationBarType.fixed,
+            selectedItemColor: const Color(0xFF0288D1),
+            unselectedItemColor: Colors.grey,
             items: [
               const BottomNavigationBarItem(
                 icon: Icon(Icons.storefront_outlined),
@@ -145,6 +163,7 @@ class _CustomerHomeState extends State<CustomerHome> {
     );
   }
 }
+
 class _OrdersTab extends StatelessWidget {
   const _OrdersTab();
 
@@ -155,9 +174,9 @@ class _OrdersTab extends StatelessWidget {
       if (data is! Map) return <CustomerOrder>[];
       return data.entries
           .map<CustomerOrder>((entry) => CustomerOrder.fromMap(
-                entry.key.toString(),
-                Map<dynamic, dynamic>.from(entry.value as Map),
-              ))
+        entry.key.toString(),
+        Map<dynamic, dynamic>.from(entry.value as Map),
+      ))
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     });
@@ -185,7 +204,11 @@ class _OrdersTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                OrderCard(order: order, showNotes: false),
+                OrderCard(
+                  order: order,
+                  showNotes: false,
+                  borderColor: const Color(0xFF0288D1),
+                ),
                 const SizedBox(height: 16),
                 Text('Placed on $placedAt', style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 16),
@@ -198,13 +221,18 @@ class _OrdersTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 ...order.items.map(
-                  (item) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(item.product.name),
-                    subtitle: Text('Qty: ${item.quantity}'),
-                    trailing: Text(
-                      '${(item.product.price * item.quantity).toStringAsFixed(2)} OMR',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      (item) => Card(
+                    shape: RoundedRectangleBorder(
+                      side: const BorderSide(color: Color(0xFF0288D1)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListTile(
+                      title: Text(item.product.name),
+                      subtitle: Text('Qty: ${item.quantity}'),
+                      trailing: Text(
+                        '${(item.product.price * item.quantity).toStringAsFixed(2)} OMR',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                 ),
@@ -268,6 +296,7 @@ class _OrdersTab extends StatelessWidget {
             return OrderCard(
               order: order,
               showNotes: false,
+              borderColor: const Color(0xFF0288D1),
               onTap: () => _showOrderDetails(context, order),
             );
           },

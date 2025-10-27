@@ -1,8 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'services/storage_service.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ManageCustomersPage extends StatefulWidget {
@@ -62,7 +63,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     }
   }
 
-  /// Dialog لإضافة أو تعديل مستخدم
   void _showUserDialog({Map<String, dynamic>? user}) {
     final nameController = TextEditingController(text: user?["name"] ?? "");
     final emailController = TextEditingController(text: user?["email"] ?? "");
@@ -93,17 +93,14 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
       String? imageUrl = currentImageUrl;
 
       if (pickedImage != null) {
-        final fileName =
-            "${DateTime.now().millisecondsSinceEpoch}_${pickedImage!.path.split('/').last}";
-        final storageRef =
-        FirebaseStorage.instance.ref().child("customer_images/$fileName");
-
-        await storageRef.putFile(pickedImage!);
-        imageUrl = await storageRef.getDownloadURL();
+        final storageService = StorageService();
+        imageUrl = await storageService.uploadImageToDatabase(
+          pickedImage!,
+          'customer_images',
+        );
       }
 
       if (user == null) {
-        // إضافة
         String newId = dbRef.push().key!;
         await dbRef.child(newId).set({
           "name": nameController.text,
@@ -112,7 +109,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
           "imageUrl": imageUrl ?? "",
         });
       } else {
-        // تعديل
         await dbRef.child(user["id"]).update({
           "name": nameController.text,
           "email": emailController.text,
@@ -180,13 +176,12 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     );
   }
 
-  /// حذف مستخدم مع رسالة تأكيد
   void _confirmDeleteUser(String id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Confirm Delete"),
-        content: const Text("Are you sure you want to delete this user??"),
+        content: const Text("Are you sure you want to delete this user?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -208,24 +203,55 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFB3E5FC),
       appBar: AppBar(
-        title: const Text("Manage Customers"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
-            onPressed: () => _showUserDialog(),
-          )
-        ],
+        backgroundColor:  Color(0xFF0288D1),
+        title: const Row(
+          children: [
+            Icon(Icons.people, color: Colors.white),
+            SizedBox(width: 10),
+            Text("Manage Customers", style: TextStyle(color: Colors.white)),
+          ],
+        ),
       ),
       body: Column(
         children: [
-          // Search bar
+          const SizedBox(height: 16),
+
+          // Add New Customer Button
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:  Color(0xFF0288D1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  "Add New Customer",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onPressed: () => _showUserDialog(),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: TextField(
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: "Search customers by email...",
+                filled: true,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -238,47 +264,62 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
               },
             ),
           ),
+          const SizedBox(height: 10),
 
-          // Table of users
+          // Customer Cards
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: DataTable(
-                border: TableBorder.all(),
-                columns: const [
-                  DataColumn(label: Text("Email")),
-                  DataColumn(label: Text("Actions")),
-                ],
-                rows: filteredUsers
-                    .map(
-                      (user) => DataRow(
-                    cells: [
-                      DataCell(Text(user["email"])),
-                      DataCell(Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () => _showUserDialog(user: user),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete,
-                                color: Colors.redAccent),
-                            onPressed: () => _confirmDeleteUser(user["id"]),
-                          ),
-                        ],
-                      )),
-                    ],
-                  ),
-                )
-                    .toList(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: ListView.builder(
+                itemCount: filteredUsers.length,
+                itemBuilder: (context, index) {
+                  final user = filteredUsers[index];
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(color:  Color(0xFF0288D1), width: 3), // Blue border
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+            leading: CircleAvatar(
+              backgroundImage: (user["imageUrl"] != null && user["imageUrl"].isNotEmpty)
+                ? (user["imageUrl"].toString().startsWith('data:')
+                  ? MemoryImage(base64Decode(user["imageUrl"].toString().split(',').length > 1 ? user["imageUrl"].toString().split(',')[1] : ''))
+                  : NetworkImage(user["imageUrl"])) as ImageProvider
+                : null,
+              child: (user["imageUrl"] == null || user["imageUrl"].isEmpty)
+                ? const Icon(Icons.person)
+                : null,
+            ),
+                        title: Text(user["name"]),
+                        subtitle: Text(user["email"]),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Color(0xFF0288D1)),
+                              onPressed: () => _showUserDialog(user: user),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                              onPressed: () => _confirmDeleteUser(user["id"]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showUserDialog(),
-        child: const Icon(Icons.add),
       ),
     );
   }

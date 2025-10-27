@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'services/database_service.dart';
 import 'models/cart_item.dart';
 import 'models/order.dart';
@@ -92,14 +93,28 @@ class PharmacistPrescriptionsPage extends StatelessWidget {
           title: const Text('Prescription'),
           content: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              url,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const SizedBox(
-                height: 200,
-                child: Center(child: Text('Unable to load image.')),
-              ),
-            ),
+            child: url.startsWith('data:')
+                ? Builder(builder: (_) {
+                    try {
+                      final parts = url.split(',');
+                      final base64Data = parts.length > 1 ? parts[1] : '';
+                      final bytes = base64Decode(base64Data);
+                      return Image.memory(bytes, fit: BoxFit.contain);
+                    } catch (_) {
+                      return const SizedBox(
+                        height: 200,
+                        child: Center(child: Text('Unable to load image.')),
+                      );
+                    }
+                  })
+                : Image.network(
+                    url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox(
+                      height: 200,
+                      child: Center(child: Text('Unable to load image.')),
+                    ),
+                  ),
           ),
           actions: [
             TextButton(

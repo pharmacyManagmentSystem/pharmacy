@@ -82,3 +82,5 @@ class DatabaseService {
   Future<void> clearCustomerCart(String customerId) =>
       customerCartRef(customerId).remove();
 }
+
+

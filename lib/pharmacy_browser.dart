@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'models/pharmacy.dart';
 import 'pharmacy_products_page.dart';
 
@@ -35,17 +36,26 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search pharmacies...',
-              prefixIcon: const Icon(Icons.search),
+              hintStyle: const TextStyle(color: Colors.black),
+              prefixIcon: const Icon(Icons.search,color: Colors.black54),
               suffixIcon: _query.isNotEmpty
                   ? IconButton(
                 onPressed: () {
                   _searchController.clear();
                   setState(() => _query = '');
                 },
-                icon: const Icon(Icons.clear),
+                icon: const Icon(Icons.clear,color: Colors.black54),
               )
                   : null,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
+            style: const TextStyle(color: Colors.black),
             onChanged: (value) => setState(() => _query = value.trim()),
           ),
           const SizedBox(height: 16),
@@ -120,17 +130,19 @@ class _PharmacyCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: Colors.blue.shade100,
-                  backgroundImage: pharmacy.imageUrl.isNotEmpty
-                      ? NetworkImage(pharmacy.imageUrl)
-                      : null,
-                  child: pharmacy.imageUrl.isEmpty
-                      ? const Icon(Icons.local_pharmacy,
-                      size: 30, color: Colors.blue)
-                      : null,
-                ),
+        CircleAvatar(
+          radius: 28,
+          backgroundColor: Colors.blue.shade100,
+          backgroundImage: pharmacy.imageUrl.isNotEmpty
+            ? (pharmacy.imageUrl.startsWith('data:')
+              ? MemoryImage(base64Decode(pharmacy.imageUrl.split(',').length > 1 ? pharmacy.imageUrl.split(',')[1] : ''))
+              : NetworkImage(pharmacy.imageUrl)) as ImageProvider
+            : null,
+          child: pharmacy.imageUrl.isEmpty
+            ? const Icon(Icons.local_pharmacy,
+              size: 30, color: Colors.blue)
+            : null,
+        ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(

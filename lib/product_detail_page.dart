@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -31,11 +32,12 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     setState(() => _uploading = true);
     try {
       final file = File(picked.path);
-      final ref = FirebaseStorage.instance
-          .ref('prescriptions/${user.uid}/${DateTime.now().millisecondsSinceEpoch}_${picked.name}');
-      await ref.putFile(file);
-      final url = await ref.getDownloadURL();
-      setState(() => _prescriptionUrl = url);
+      final storageService = StorageService();
+      final dataUrl = await storageService.uploadImageToDatabase(
+        file,
+        'prescriptions/${user.uid}',
+      );
+      setState(() => _prescriptionUrl = dataUrl);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Prescription uploaded successfully')),
       );
@@ -48,6 +50,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
 
   Widget _buildProductImage(String path) {
     // ✅ إذا كان يبدأ بـ "http" => من الإنترنت
+    if (path.startsWith('data:')) {
+      try {
+        // data:<contentType>;base64,<data>
+        final parts = path.split(',');
+        final base64Data = parts.length > 1 ? parts[1] : '';
+        final bytes = base64Decode(base64Data);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {
+        return const Icon(Icons.broken_image, size: 60);
+      }
+    }
     if (path.startsWith('http')) {
       return Image.network(
         path,

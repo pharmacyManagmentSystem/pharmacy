@@ -82,10 +82,10 @@ class _LoginState extends State<Login> {
         late final Widget destination;
         switch (selectedRole) {
           case 'Pharmacist':
-            destination = PharmacistHome(onThemeChanged: widget.onThemeChanged);
+            destination = PharmacistHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
             break;
           case 'Delivery Person':
-            destination = DeliveryPersonHome(onThemeChanged: widget.onThemeChanged);
+            destination = DeliveryPersonHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
             break;
           case 'Customer':
             destination = CustomerHome(
@@ -197,7 +197,7 @@ class _LoginState extends State<Login> {
                     ),
                   );
                 },
-                child: const Text('Reset Password?', style: TextStyle(color: Colors.blue)),
+                child: const Text('Forgot Password?', style: TextStyle(color: Colors.blue)),
               ),
               if (selectedRole == 'Customer')
                 TextButton(

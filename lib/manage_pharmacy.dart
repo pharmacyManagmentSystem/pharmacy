@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'services/storage_service.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ManagePharmacistPage extends StatefulWidget {
@@ -64,7 +64,6 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
     }
   }
 
-  /// Add or edit pharmacist
   void _showPharmacistDialog({Map<String, dynamic>? pharmacist}) {
     final nameController =
     TextEditingController(text: pharmacist?["name"] ?? "");
@@ -74,7 +73,7 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
     TextEditingController(text: pharmacist?["phone"] ?? "");
     final addressController =
     TextEditingController(text: pharmacist?["pharmacy_address"] ?? "");
-    final passwordController = TextEditingController(); // for add OR edit
+    final passwordController = TextEditingController();
 
     File? pickedImage;
     String? currentImageUrl = pharmacist?["imageUrl"];
@@ -104,17 +103,14 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
       String? imageUrl = currentImageUrl;
 
       if (pickedImage != null) {
-        final fileName =
-            "${DateTime.now().millisecondsSinceEpoch}_${pickedImage!.path.split('/').last}";
-        final storageRef =
-        FirebaseStorage.instance.ref().child("pharmacist_images/$fileName");
-
-        await storageRef.putFile(pickedImage!);
-        imageUrl = await storageRef.getDownloadURL();
+        final storageService = StorageService();
+        imageUrl = await storageService.uploadImageToDatabase(
+          pickedImage!,
+          'pharmacist_images',
+        );
       }
 
       if (pharmacist == null) {
-        // 🔹 Add new pharmacist (Auth + DB)
         try {
           UserCredential userCred = await FirebaseAuth.instance
               .createUserWithEmailAndPassword(
@@ -142,7 +138,6 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
           );
         }
       } else {
-        // 🔹 Update pharmacist in DB
         await dbRef.child(pharmacist["id"]).update({
           "name": nameController.text,
           "email": emailController.text,
@@ -156,23 +151,11 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
       Navigator.pop(context);
     }
 
-    Future<void> updatePassword(String uid, String newPassword) async {
-      try {
-        await FirebaseAuth.instance.currentUser!.updatePassword(newPassword);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password updated successfully")),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to update password: $e")),
-        );
-      }
-    }
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
+        title:
+        Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -211,38 +194,15 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
               const SizedBox(height: 10),
               TextField(
                 controller: addressController,
-                decoration: const InputDecoration(labelText: "Pharmacy Address"),
+                decoration:
+                const InputDecoration(labelText: "Pharmacy Address"),
               ),
               if (pharmacist == null) ...[
-                // For ADD
                 const SizedBox(height: 10),
                 TextField(
                   controller: passwordController,
                   decoration: const InputDecoration(labelText: "Password"),
                   obscureText: true,
-                ),
-              ] else ...[
-                // For EDIT → Password Change
-                const SizedBox(height: 20),
-                const Divider(),
-                const Text("Change Password", style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(labelText: "New Password"),
-                  obscureText: true,
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (passwordController.text.isNotEmpty) {
-                      updatePassword(pharmacist["id"], passwordController.text.trim());
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Enter a new password")),
-                      );
-                    }
-                  },
-                  child: const Text("Update Password"),
                 ),
               ]
             ],
@@ -262,7 +222,6 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
     );
   }
 
-  /// Delete confirmation
   void _confirmDeletePharmacist(String id) {
     showDialog(
       context: context,
@@ -290,24 +249,59 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFB3E5FC), // Baby blue background
       appBar: AppBar(
-        title: const Text("Manage Pharmacists"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
-            onPressed: () => _showPharmacistDialog(),
-          )
-        ],
+        backgroundColor: Color(0xFF0288D1),
+        title: const Row(
+          children: [
+            CircleAvatar(
+              backgroundImage: AssetImage("assets/pharmacy.jpg"),
+              radius: 16,
+            ),
+            SizedBox(width: 10),
+            Text(
+              "Manage Pharmacists",
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
       ),
+
       body: Column(
+
         children: [
-          // Search bar
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.all(8.0),
+            child: SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:  Color(0xFF0288D1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  "Add New Pharmacy",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onPressed: () => _showPharmacistDialog(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 🔹 Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: TextField(
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
                 hintText: "Search pharmacists by email...",
+                filled: true,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -320,48 +314,61 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
               },
             ),
           ),
+          const SizedBox(height: 10),
 
-          // Table
+          // 🔹 Pharmacist Cards
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.vertical,
-              child: DataTable(
-                border: TableBorder.all(),
-                columns: const [
-                  DataColumn(label: Text("Email")),
-                  DataColumn(label: Text("Actions")),
-                ],
-                rows: filteredPharmacists
-                    .map(
-                      (pharmacist) => DataRow(
-                    cells: [
-                      DataCell(Text(pharmacist["email"])),
-                      DataCell(Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () =>
-                                _showPharmacistDialog(pharmacist: pharmacist),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () =>
-                                _confirmDeletePharmacist(pharmacist["id"]),
-                          ),
-                        ],
-                      )),
-                    ],
+            child: ListView.builder(
+              itemCount: filteredPharmacists.length,
+              itemBuilder: (context, index) {
+                final pharmacist = filteredPharmacists[index];
+                return Card(
+                  color: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color:  Color(0xFF0288D1), width: 1.5),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                )
-                    .toList(),
-              ),
+                  margin:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: pharmacist["imageUrl"].isNotEmpty
+                          ? NetworkImage(pharmacist["imageUrl"])
+                          : const AssetImage("assets/pharmacy.jpg")
+                      as ImageProvider,
+                    ),
+                    title: Text(pharmacist["name"],
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Email: ${pharmacist["email"]}"),
+                        Text("Phone: ${pharmacist["phone"]}"),
+                        Text("Address: ${pharmacist["pharmacy_address"]}"),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Color(0xFF0288D1)),
+                          onPressed: () =>
+                              _showPharmacistDialog(pharmacist: pharmacist),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () =>
+                              _confirmDeletePharmacist(pharmacist["id"]),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showPharmacistDialog(),
-        child: const Icon(Icons.add),
       ),
     );
   }

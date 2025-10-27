@@ -7,12 +7,14 @@ class OrderCard extends StatelessWidget {
     super.key,
     required this.order,
     this.onTap,
+    this.borderColor = Colors.transparent,
     this.showNotes = true,
   });
 
   final CustomerOrder order;
   final VoidCallback? onTap;
   final bool showNotes;
+  final Color borderColor;
 
   Color _statusColor(BuildContext context) {
     switch (order.status) {
