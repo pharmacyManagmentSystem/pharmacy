@@ -119,7 +119,7 @@ class _DeliveryPersonProfilePageState
 
                 if (newPassword != confirmPassword) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('New passwords do not match')),
+                    const SnackBar(content: Text('New passwords do not match ')),
                   );
                   return;
                 }

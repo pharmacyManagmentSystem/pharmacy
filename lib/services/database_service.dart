@@ -52,6 +52,18 @@ class DatabaseService {
   DatabaseReference notificationSettingsRef(String userId) =>
       _database.ref('notification_settings/$userId');
 
+  /// Notifications for a specific customer. Each child is a notification object.
+  DatabaseReference customerNotificationsRef(String userId) =>
+      _database.ref('notifications/$userId');
+
+  /// Notifications for a pharmacy (pharmacists). Each child is a notification object.
+  DatabaseReference pharmacyNotificationsRef(String pharmacyId) =>
+      _database.ref('pharmacy_notifications/$pharmacyId');
+
+  /// Pending prescriptions that require pharmacist review.
+  DatabaseReference pendingPrescriptionsRef(String pharmacyId) =>
+      _database.ref('pending_prescriptions/$pharmacyId');
+
   DatabaseReference expiryTrackerRef(String pharmacistId) =>
       _database.ref('products/$pharmacistId');
 
@@ -82,5 +94,3 @@ class DatabaseService {
   Future<void> clearCustomerCart(String customerId) =>
       customerCartRef(customerId).remove();
 }
-
-

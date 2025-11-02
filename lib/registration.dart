@@ -149,7 +149,7 @@ class _RegistrationState extends State<Registration> {
                         return 'Password must be 6-20 characters long.';
                       }
                       if (!RegExp(r'(?=.*[a-z])').hasMatch(value)) {
-                        return 'Password must contain at least one lowercase letter.';
+                        return 'Password must contain at least one lowercase letter. ';
                       }
                       if (!RegExp(r'(?=.*[A-Z])').hasMatch(value)) {
                         return 'Password must contain at least one uppercase letter.';

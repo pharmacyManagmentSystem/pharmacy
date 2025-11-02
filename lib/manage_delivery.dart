@@ -42,19 +42,15 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue[100], // Baby blue background
+      backgroundColor: Colors.blue[100],
       appBar: AppBar(
-        title: const Text(
-          "Manage Delivery",
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor:  Color(0xFF0288D1), // Blue AppBar
+        title: const Text("Manage Delivery", style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF0288D1),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // ➕ Add new delivery person button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -62,16 +58,13 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                 icon: const Icon(Icons.add),
                 label: const Text("Add New Delivery Person"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF0288D1),
+                  backgroundColor: const Color(0xFF0288D1),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
-
-            const SizedBox(height: 16), // Space between button and search bar
-
-            // 🔍 Search bar
+            const SizedBox(height: 16),
             TextField(
               decoration: const InputDecoration(
                 labelText: "Search by Email",
@@ -86,10 +79,7 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                 });
               },
             ),
-
-            const SizedBox(height: 16), // Space between search bar and list
-
-            // 📋 Delivery cards
+            const SizedBox(height: 16),
             Expanded(
               child: StreamBuilder(
                 stream: dbRef.onValue,
@@ -98,16 +88,14 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                     return const Center(child: Text("Error loading data"));
                   }
                   if (!snapshot.hasData || snapshot.data == null) {
-                    return const Center(
-                        child: Text("No delivery persons found"));
+                    return const Center(child: Text("No delivery persons found"));
                   }
 
                   final event = snapshot.data! as DatabaseEvent;
                   final raw = event.snapshot.value;
 
                   if (raw is! Map<dynamic, dynamic>) {
-                    return const Center(
-                        child: Text("No delivery persons found"));
+                    return const Center(child: Text("No delivery persons found"));
                   }
 
                   final deliveryList = raw.entries
@@ -127,8 +115,7 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                       .toList();
 
                   if (deliveryList.isEmpty) {
-                    return const Center(
-                        child: Text("No delivery persons found"));
+                    return const Center(child: Text("No delivery persons found"));
                   }
 
                   return ListView.builder(
@@ -143,18 +130,27 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 4,
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 8, horizontal: 0),
+                        margin: const EdgeInsets.symmetric(vertical: 8),
                         child: ListTile(
-                          leading: deliveryData['image'] != null && deliveryData['image'].toString().isNotEmpty
+                          leading: deliveryData['image'] != null &&
+                              deliveryData['image'].toString().isNotEmpty
                               ? CircleAvatar(
-                            backgroundImage: deliveryData['image'].toString().startsWith('data:')
-                                ? MemoryImage(base64Decode(deliveryData['image'].toString().split(',').length > 1 ? deliveryData['image'].toString().split(',')[1] : ''))
+                            backgroundImage: deliveryData['image']
+                                .toString()
+                                .startsWith('data:')
+                                ? MemoryImage(base64Decode(
+                                deliveryData['image']
+                                    .toString()
+                                    .split(',')
+                                    .length >
+                                    1
+                                    ? deliveryData['image']
+                                    .toString()
+                                    .split(',')[1]
+                                    : ''))
                                 : NetworkImage(deliveryData['image']),
                           )
-                              : const CircleAvatar(
-                            child: Icon(Icons.person),
-                          ),
+                              : const CircleAvatar(child: Icon(Icons.person)),
                           title: Text(deliveryData['name'] ?? ''),
                           subtitle: Text(deliveryData['email'] ?? ''),
                           trailing: Row(
@@ -163,17 +159,13 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                               IconButton(
                                 icon:
                                 const Icon(Icons.edit, color: Color(0xFF0288D1)),
-                                onPressed: () {
-                                  _editDeliveryDialog(
-                                      context, deliveryId, deliveryData);
-                                },
+                                onPressed: () => _editDeliveryDialog(
+                                    context, deliveryId, deliveryData),
                               ),
                               IconButton(
-                                icon:
-                                const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () {
-                                  _confirmDelete(context, deliveryId);
-                                },
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () =>
+                                    _confirmDelete(context, deliveryId),
                               ),
                             ],
                           ),
@@ -190,32 +182,31 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
     );
   }
 
+  // 🗑 Delete confirmation
   void _confirmDelete(BuildContext context, String deliveryId) {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Delete Delivery Person"),
-          content:
-          const Text("Are you sure you want to delete this delivery person?"),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () async {
-                await dbRef.child(deliveryId).remove();
-                Navigator.pop(context);
-              },
-              child: const Text("Delete"),
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Delivery Person"),
+        content: const Text("Are you sure you want to delete this delivery person?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              await dbRef.child(deliveryId).remove();
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
     );
   }
 
+  // ➕ Add Delivery Dialog (with password only when adding)
   void _addDeliveryDialog(BuildContext context) {
+    final _formKey = GlobalKey<FormState>();
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final phoneController = TextEditingController();
@@ -223,21 +214,42 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Add Delivery Person"),
-          content: SingleChildScrollView(
+      builder: (context) => AlertDialog(
+        title: const Text("Add Delivery Person"),
+        content: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
             child: Column(
               children: [
-                TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: "Name")),
-                TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(labelText: "Email")),
-                TextField(
-                    controller: phoneController,
-                    decoration: const InputDecoration(labelText: "Phone")),
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Name"),
+                  validator: (value) =>
+                  value == null || value.isEmpty ? "Name is required" : null,
+                ),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: "Email"),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return "Email is required";
+                    final emailReg = RegExp(r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$');
+                    if (!emailReg.hasMatch(value)) return "Invalid email format";
+                    return null;
+                  },
+                ),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(labelText: "Phone"),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return "Phone is required";
+                    final phoneReg = RegExp(r'^[97]\d{7}$');
+                    if (!phoneReg.hasMatch(value)) {
+                      return "Must start with 9 or 7 and be 8 digits";
+                    }
+                    return null;
+                  },
+                ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: _pickImage,
@@ -248,121 +260,39 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                   Image.file(_selectedImage!,
                       height: 100, width: 100, fit: BoxFit.cover),
                 const SizedBox(height: 8),
-                TextField(
+                TextFormField(
                   controller: passwordController,
-                  decoration: const InputDecoration(labelText: "Password"),
                   obscureText: true,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  final credential = await FirebaseAuth.instance
-                      .createUserWithEmailAndPassword(
-                    email: emailController.text.trim(),
-                    password: passwordController.text.trim(),
-                  );
-
-                  String imageUrl = "";
-                  if (_selectedImage != null) {
-                    imageUrl = await _uploadImage(credential.user!.uid);
-                  }
-
-                  await dbRef.child(credential.user!.uid).set({
-                    "name": nameController.text,
-                    "email": emailController.text,
-                    "phone": phoneController.text,
-                    "image": imageUrl,
-                  });
-
-                  Navigator.pop(context);
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: $e")),
-                  );
-                }
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _editDeliveryDialog(
-      BuildContext context, String deliveryId, Map deliveryData) {
-    final nameController = TextEditingController(text: deliveryData['name']);
-    final emailController = TextEditingController(text: deliveryData['email']);
-    final phoneController = TextEditingController(text: deliveryData['phone']);
-    final imageController =
-    TextEditingController(text: deliveryData['image'] ?? '');
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Edit Delivery Person"),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: "Name")),
-                TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(labelText: "Email")),
-                TextField(
-                    controller: phoneController,
-                    decoration: const InputDecoration(labelText: "Phone")),
-                TextField(
-                    controller: imageController,
-                    decoration: const InputDecoration(labelText: "Image URL")),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    try {
-                      await FirebaseAuth.instance.sendPasswordResetEmail(
-                          email: emailController.text.trim());
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text(
-                                "Password reset email sent successfully")),
-                      );
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Error: $e")),
-                      );
-                    }
+                  decoration: const InputDecoration(labelText: "Password"),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return "Password is required";
+                    if (value.length < 6) return "Must be at least 6 characters";
+                    return null;
                   },
-                  icon: const Icon(Icons.email),
-                  label: const Text("Send Reset Password Email"),
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel")),
-            ElevatedButton(
-              onPressed: () async {
-                String imageUrl = imageController.text.trim().isEmpty
-                    ? (deliveryData['image'] ?? '')
-                    : imageController.text.trim();
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              if (!_formKey.currentState!.validate()) return;
 
+              try {
+                final credential = await FirebaseAuth.instance
+                    .createUserWithEmailAndPassword(
+                  email: emailController.text.trim(),
+                  password: passwordController.text.trim(),
+                );
+
+                String imageUrl = "";
                 if (_selectedImage != null) {
-                  imageUrl = await _uploadImage(deliveryId);
-                  _selectedImage = null;
+                  imageUrl = await _uploadImage(credential.user!.uid);
                 }
 
-                await dbRef.child(deliveryId).update({
+                await dbRef.child(credential.user!.uid).set({
                   "name": nameController.text.trim(),
                   "email": emailController.text.trim(),
                   "phone": phoneController.text.trim(),
@@ -371,12 +301,87 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
 
                 if (!mounted) return;
                 Navigator.pop(context);
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
+                );
+              }
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✏️ Edit Delivery Dialog (no password handling)
+  void _editDeliveryDialog(BuildContext context, String deliveryId, Map deliveryData) {
+    final nameController = TextEditingController(text: deliveryData['name']);
+    final emailController = TextEditingController(text: deliveryData['email']);
+    final phoneController = TextEditingController(text: deliveryData['phone']);
+    final imageController =
+    TextEditingController(text: deliveryData['image'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit Delivery Person"),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Name"),
+              ),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: "Email"),
+              ),
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: "Phone"),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.image),
+                label: const Text("Change Image"),
+              ),
+              if (_selectedImage != null)
+                Image.file(
+                  _selectedImage!,
+                  height: 100,
+                  width: 100,
+                  fit: BoxFit.cover,
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            onPressed: () async {
+              String imageUrl = deliveryData['image'] ?? '';
+
+              if (_selectedImage != null) {
+                imageUrl = await _uploadImage(deliveryId);
+                _selectedImage = null;
+              }
+
+              await dbRef.child(deliveryId).update({
+                "name": nameController.text.trim(),
+                "email": emailController.text.trim(),
+                "phone": phoneController.text.trim(),
+                "image": imageUrl,
+              });
+
+              if (!mounted) return;
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
     );
   }
 }

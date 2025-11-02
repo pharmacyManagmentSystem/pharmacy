@@ -45,6 +45,63 @@ class _PaymentPageState extends State<PaymentPage> {
     setState(() => _loading = true);
     try {
       final state = context.read<CustomerAppState>();
+      
+      // تحقق محدث من حالة الموافقة لكل منتج في السلة
+      bool hasPendingItems = false;
+      
+      for (var item in state.cartItems) {
+        if (item.pendingApproval && item.requestId != null) {
+          // تحقق مباشر من قاعدة البيانات
+          final snapshot = await DatabaseService.instance
+              .customerCartRef(user.uid)
+              .child(item.requestId!)
+              .get();
+              
+          if (snapshot.exists && snapshot.value is Map) {
+            final data = snapshot.value as Map;
+            if (data['approved'] == true || data['status'] == 'approved' || data['pendingApproval'] == false) {
+              // تم الموافقة على هذا المنتج - تحديث الحالة المحلية
+              item.pendingApproval = false;
+              continue;
+            }
+          }
+          hasPendingItems = true;
+          break;
+        }
+      }
+      
+      if (hasPendingItems) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('في انتظار الموافقة'),
+            content: const Text('بعض المنتجات في سلتك تحتاج إلى موافقة الصيدلي. لا يمكن إتمام الدفع حتى تتم الموافقة.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context), 
+                child: const Text('حسناً')
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      final hasRejected = state.cartItems.any((i) => i.rejected);
+      if (hasRejected) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Item rejected'),
+            content: const Text('One or more items in your cart were rejected by the pharmacist and cannot be purchased.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+            ],
+          ),
+        );
+        return;
+      }
       final orderId = await state.submitOrder(
         customerId: user.uid,
         customerName: _name.text.trim(),

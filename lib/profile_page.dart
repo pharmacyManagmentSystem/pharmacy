@@ -5,7 +5,7 @@ import 'services/database_service.dart';
 import 'customize_notifications_pharmacists.dart';
 import 'pharmacist_requests_page.dart';
 import 'pharmacist_prescriptions_page.dart';
-
+import 'expiry_tracker_page.dart';
 class ProfilePage extends StatefulWidget {
   final Function(bool) onThemeChanged;
   final bool isDarkMode;
@@ -313,7 +313,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
             buildButton("Edit Profile", _showEditProfileDialog),
             const SizedBox(height: 10),
-            buildButton("Check soon expiry dates", () {}),
+            buildButton(
+              "Check soon expiry dates",
+                  () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ExpiryTrackerPage(),
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: 10),
             SwitchListTile(
               title: Text("Turn On Dark Mode", style: TextStyle(color: textColor)),

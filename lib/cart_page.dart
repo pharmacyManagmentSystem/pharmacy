@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:provider/provider.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'state/customer_app_state.dart';
+import 'services/database_service.dart';
 import 'location_capture_page.dart';
 
 class CustomerCartPage extends StatelessWidget {
@@ -46,21 +48,21 @@ class CustomerCartPage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                   child: item.product.imageUrl.isNotEmpty
                                       ? (item.product.imageUrl.startsWith('data:')
-                                          ? Builder(builder: (context) {
-                                              try {
-                                                final parts = item.product.imageUrl.split(',');
-                                                final base64Data = parts.length > 1 ? parts[1] : '';
-                                                final bytes = base64Decode(base64Data);
-                                                return Image.memory(bytes, fit: BoxFit.cover);
-                                              } catch (_) {
-                                                return const Icon(Icons.broken_image);
-                                              }
-                                            })
-                                          : Image.network(
-                                              item.product.imageUrl,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-                                            ))
+                                      ? Builder(builder: (context) {
+                                    try {
+                                      final parts = item.product.imageUrl.split(',');
+                                      final base64Data = parts.length > 1 ? parts[1] : '';
+                                      final bytes = base64Decode(base64Data);
+                                      return Image.memory(bytes, fit: BoxFit.cover);
+                                    } catch (_) {
+                                      return const Icon(Icons.broken_image);
+                                    }
+                                  })
+                                      : Image.network(
+                                    item.product.imageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+                                  ))
                                       : const Center(child: Icon(Icons.medication_outlined)),
                                 ),
                               ),
@@ -94,6 +96,32 @@ class CustomerCartPage extends StatelessWidget {
                                           color: Colors.green,
                                           fontSize: 12,
                                         ),
+                                      ),
+                                    if (item.requestId != null)
+                                      StreamBuilder<DatabaseEvent>(
+                                        stream: DatabaseService.instance
+                                            .customerCartRef(context.read<CustomerAppState>().currentUserId ?? '')
+                                            .child(item.requestId!)
+                                            .onValue,
+                                        builder: (context, snapshot) {
+                                          bool isApproved = false;
+                                          if (snapshot.hasData && snapshot.data!.snapshot.value is Map) {
+                                            final data = snapshot.data!.snapshot.value as Map;
+                                            isApproved = data['approved'] == true || 
+                                                       data['status'] == 'approved' || 
+                                                       data['pendingApproval'] == false;
+                                          }
+                                          return Text(
+                                            isApproved 
+                                              ? 'Approved by pharmacist'
+                                              : 'Pending pharmacist approval',
+                                            style: TextStyle(
+                                              color: isApproved ? Colors.green : Colors.orange,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          );
+                                        },
                                       ),
                                   ],
                                 ),
@@ -238,7 +266,23 @@ class CustomerCartPage extends StatelessWidget {
                         height: 50,
                         child: ElevatedButton(
                           onPressed: hasItems
-                              ? () {
+                              ? () async {
+                            final isApproved = await state.verifyApprovalStatus();
+                            if (!isApproved) {
+                              if (!context.mounted) return;
+                              showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: const Text('Pending Approval'),
+                                  content: const Text('Some items in your cart require pharmacist approval. Please wait for approval before proceeding to checkout.'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                                  ],
+                                ),
+                              );
+                              return;
+                            }
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(

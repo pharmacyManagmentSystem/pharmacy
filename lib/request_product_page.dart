@@ -195,7 +195,7 @@ class _RequestProductPageState extends State<RequestProductPage> {
                       color: Colors.white,
                     ),
                   )
-                      : const Text('Submit request'),
+                      : const Text('Submit request '),
                 ),
               ),
             ],
