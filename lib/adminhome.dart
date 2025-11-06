@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'login.dart';
 import 'manage_pharmacy.dart';
 import 'manage_customers.dart';
@@ -7,20 +6,19 @@ import 'manage_delivery.dart';
 
 class AdminHome extends StatelessWidget {
   final Function(bool) onThemeChanged;
-
   const AdminHome({super.key, required this.onThemeChanged});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFB3E5FC),
+      backgroundColor: const Color(0xFFB3E5FC), // Baby blue background
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0288D1),
+        backgroundColor: const Color(0xFF0288D1), // White app bar
         elevation: 4,
         title: Row(
           children: [
             Image.asset(
-              'assets/pharmacy.jpg',
+              'assets/pharmacy.jpg', // pharmacy logo
               height: 40,
               width: 40,
             ),
@@ -30,7 +28,7 @@ class AdminHome extends StatelessWidget {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Colors.white, // Black text on white background
               ),
             ),
           ],
@@ -42,8 +40,7 @@ class AdminHome extends StatelessWidget {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                    builder: (context) =>
-                        Login(onThemeChanged: onThemeChanged)),
+                    builder: (context) => Login(onThemeChanged: onThemeChanged)),
               );
             },
           ),
@@ -112,7 +109,7 @@ class AdminCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Card(
-        color: const Color(0xFF0288D1),
+        color: const Color(0xFF0288D1), // Blue card
         elevation: 6,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
