@@ -19,7 +19,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
 
   List<Map<String, dynamic>> allUsers = [];
   List<Map<String, dynamic>> filteredUsers = [];
-
   String searchQuery = "";
 
   @override
@@ -31,7 +30,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
   void fetchUsers() {
     dbRef.onValue.listen((event) {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
-
       if (data != null) {
         List<Map<String, dynamic>> temp = [];
         data.forEach((key, value) {
@@ -41,9 +39,9 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
             "email": value["email"] ?? "",
             "phone": value["phone"] ?? "",
             "imageUrl": value["imageUrl"] ?? "",
+            "status": value["status"] ?? "active",
           });
         });
-
         setState(() {
           allUsers = temp;
           applyFilter();
@@ -63,12 +61,13 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     }
   }
 
-  void _showUserDialog({Map<String, dynamic>? user}) {
-    final nameController = TextEditingController(text: user?["name"] ?? "");
-    final emailController = TextEditingController(text: user?["email"] ?? "");
-    final phoneController = TextEditingController(text: user?["phone"] ?? "");
+  void _showUserDialog({required Map<String, dynamic> user}) {
+    final _formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: user["name"] ?? "");
+    final emailController = TextEditingController(text: user["email"] ?? "");
+    final phoneController = TextEditingController(text: user["phone"] ?? "");
     File? pickedImage;
-    String? currentImageUrl = user?["imageUrl"];
+    String? currentImageUrl = user["imageUrl"];
 
     Future<void> pickImage() async {
       final picker = ImagePicker();
@@ -81,17 +80,9 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     }
 
     Future<void> saveUser() async {
-      if (nameController.text.isEmpty ||
-          emailController.text.isEmpty ||
-          phoneController.text.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please fill all fields")),
-        );
-        return;
-      }
+      if (!_formKey.currentState!.validate()) return;
 
       String? imageUrl = currentImageUrl;
-
       if (pickedImage != null) {
         final storageService = StorageService();
         imageUrl = await storageService.uploadImageToDatabase(
@@ -100,66 +91,87 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
         );
       }
 
-      if (user == null) {
-        String newId = dbRef.push().key!;
-        await dbRef.child(newId).set({
-          "name": nameController.text,
-          "email": emailController.text,
-          "phone": phoneController.text,
-          "imageUrl": imageUrl ?? "",
-        });
-      } else {
-        await dbRef.child(user["id"]).update({
-          "name": nameController.text,
-          "email": emailController.text,
-          "phone": phoneController.text,
-          "imageUrl": imageUrl ?? "",
-        });
-      }
+      await dbRef.child(user["id"]).update({
+        "name": nameController.text.trim(),
+        "email": emailController.text.trim(),
+        "phone": phoneController.text.trim(),
+        "imageUrl": imageUrl ?? "",
+        "uid": user["id"],
+        "status": user["status"] ?? "active",
+      });
 
       Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Customer updated successfully")),
+      );
     }
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(user == null ? "Add New Customer" : "Edit Customer"),
+        title: const Text("Edit Customer"),
         content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: pickImage,
-                child: CircleAvatar(
-                  radius: 40,
-                  backgroundImage: pickedImage != null
-                      ? FileImage(pickedImage!)
-                      : (currentImageUrl != null && currentImageUrl.isNotEmpty)
-                      ? NetworkImage(currentImageUrl) as ImageProvider
-                      : null,
-                  child: (pickedImage == null &&
-                      (currentImageUrl == null || currentImageUrl.isEmpty))
-                      ? const Icon(Icons.camera_alt, size: 40)
-                      : null,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: pickImage,
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundImage: pickedImage != null
+                        ? FileImage(pickedImage!)
+                        : (currentImageUrl != null &&
+                        currentImageUrl.isNotEmpty)
+                        ? NetworkImage(currentImageUrl) as ImageProvider
+                        : null,
+                    child: (pickedImage == null &&
+                        (currentImageUrl == null ||
+                            currentImageUrl.isEmpty))
+                        ? const Icon(Icons.camera_alt, size: 40)
+                        : null,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: "Name"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "Email"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: "Phone"),
-                keyboardType: TextInputType.phone,
-              ),
-            ],
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Name"),
+                  validator: (value) =>
+                  value == null || value.isEmpty ? 'Name is required' : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: "Email"),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Email is required';
+                    }
+                    if (!RegExp(r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$')
+                        .hasMatch(value)) {
+                      return 'Enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(labelText: "Phone"),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Phone is required';
+                    }
+                    if (!RegExp(r'^[97]\d{7}$').hasMatch(value)) {
+                      return 'Must start with 9 or 7 and be 8 digits long';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -176,28 +188,82 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     );
   }
 
-  void _confirmDeleteUser(String id) {
+  void _showStatusDialog(String id, String currentStatus) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Confirm Delete"),
-        content: const Text("Are you sure you want to delete this user?"),
+        title: const Text("Change Account Status"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Select new status for this account:"),
+            const SizedBox(height: 16),
+            ListTile(
+              title: const Text("Active"),
+              subtitle: const Text("User can log in and use the platform"),
+              leading: Radio<String>(
+                value: "active",
+                groupValue: currentStatus,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  _updateStatus(id, value!);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text("Suspended"),
+              subtitle: const Text("Account is temporarily disabled"),
+              leading: Radio<String>(
+                value: "suspended",
+                groupValue: currentStatus,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  _updateStatus(id, value!);
+                },
+              ),
+            ),
+            ListTile(
+              title: const Text("Deleted"),
+              subtitle: const Text("Account is inactive but kept for records"),
+              leading: Radio<String>(
+                value: "deleted",
+                groupValue: currentStatus,
+                onChanged: (value) {
+                  Navigator.pop(context);
+                  _updateStatus(id, value!);
+                },
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("No"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await dbRef.child(id).remove();
-              Navigator.pop(context);
-            },
-            child: const Text("Yes"),
+            child: const Text("Cancel"),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _updateStatus(String id, String newStatus) async {
+    await dbRef.child(id).update({"status": newStatus});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Account status updated to $newStatus")),
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case "active":
+        return Colors.green;
+      case "suspended":
+        return Colors.orange;
+      case "deleted":
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
   @override
@@ -205,7 +271,7 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFB3E5FC),
       appBar: AppBar(
-        backgroundColor:  Color(0xFF0288D1),
+        backgroundColor: const Color(0xFF0288D1),
         title: const Row(
           children: [
             Icon(Icons.people, color: Colors.white),
@@ -217,33 +283,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
       body: Column(
         children: [
           const SizedBox(height: 16),
-
-          // Add New Customer Button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: SizedBox(
-              width: double.infinity,
-              height: 45,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:  Color(0xFF0288D1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: const Icon(Icons.add, color: Colors.white),
-                label: const Text(
-                  "Add New Customer",
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                onPressed: () => _showUserDialog(),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Search Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: TextField(
@@ -265,8 +304,6 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // Customer Cards
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -277,7 +314,8 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                   return Container(
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     decoration: BoxDecoration(
-                      border: Border.all(color:  Color(0xFF0288D1), width: 3), // Blue border
+                      border:
+                      Border.all(color: const Color(0xFF0288D1), width: 3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Card(
@@ -287,28 +325,57 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
                       ),
                       margin: EdgeInsets.zero,
                       child: ListTile(
-            leading: CircleAvatar(
-              backgroundImage: (user["imageUrl"] != null && user["imageUrl"].isNotEmpty)
-                ? (user["imageUrl"].toString().startsWith('data:')
-                  ? MemoryImage(base64Decode(user["imageUrl"].toString().split(',').length > 1 ? user["imageUrl"].toString().split(',')[1] : ''))
-                  : NetworkImage(user["imageUrl"])) as ImageProvider
-                : null,
-              child: (user["imageUrl"] == null || user["imageUrl"].isEmpty)
-                ? const Icon(Icons.person)
-                : null,
-            ),
+                        leading: CircleAvatar(
+                          backgroundImage: (user["imageUrl"] != null &&
+                              user["imageUrl"].isNotEmpty)
+                              ? (user["imageUrl"].toString().startsWith('data:')
+                              ? MemoryImage(base64Decode(
+                              user["imageUrl"]
+                                  .toString()
+                                  .split(',')[1]))
+                              : NetworkImage(user["imageUrl"]))
+                          as ImageProvider
+                              : null,
+                          child: (user["imageUrl"] == null ||
+                              user["imageUrl"].isEmpty)
+                              ? const Icon(Icons.person)
+                              : null,
+                        ),
                         title: Text(user["name"]),
                         subtitle: Text(user["email"]),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color:
+                                _getStatusColor(user["status"] ?? "active"),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                (user["status"] ?? "active")
+                                    .toString()
+                                    .toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                             IconButton(
-                              icon: const Icon(Icons.edit, color: Color(0xFF0288D1)),
+                              icon: const Icon(Icons.edit,
+                                  color: Color(0xFF0288D1)),
                               onPressed: () => _showUserDialog(user: user),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
-                              onPressed: () => _confirmDeleteUser(user["id"]),
+                              icon: const Icon(Icons.info_outline,
+                                  color: Colors.orange),
+                              onPressed: () => _showStatusDialog(
+                                  user["id"], user["status"] ?? "active"),
+                              tooltip: "Change account status",
                             ),
                           ],
                         ),

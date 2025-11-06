@@ -13,7 +13,8 @@ import 'profile_page.dart';
 class PharmacistHome extends StatefulWidget {
   final Function(bool) onThemeChanged;
   final bool isDarkMode;
-  const PharmacistHome({super.key, required this.onThemeChanged, required this.isDarkMode});
+  const PharmacistHome(
+      {super.key, required this.onThemeChanged, required this.isDarkMode});
 
   @override
   State<PharmacistHome> createState() => _PharmacistHomeState();
@@ -53,7 +54,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       height: 50,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+          backgroundColor:
+              _isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
           foregroundColor: Colors.white,
         ),
         onPressed: onPressed,
@@ -62,16 +64,53 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
-  // ---------------- Add Product / Update / Delete / Show Dialog ----------------
   Future<void> addProduct(
-      Map<String, dynamic> productData, {
-        File? image,
-        String? manualImageReference,
-      }) async {
+    Map<String, dynamic> productData, {
+    File? image,
+    String? manualImageReference,
+  }) async {
+    final expiryDateStr = productData['expiryDate']?.toString();
+    if (expiryDateStr != null && expiryDateStr.isNotEmpty) {
+      final expiryDate = DateTime.tryParse(expiryDateStr);
+      if (expiryDate != null) {
+        final today = DateTime.now();
+        final todayOnly = DateTime(today.year, today.month, today.day);
+        final expiryOnly =
+            DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+        if (expiryOnly.isBefore(todayOnly) ||
+            expiryOnly.isAtSameMomentAs(todayOnly)) {
+          throw StateError(
+              'Expiry date must be a future date. Cannot add expired or today\'s products.');
+        }
+      }
+    }
+
+    final productName = productData['name']?.toString().trim().toLowerCase();
+    if (productName != null && productName.isNotEmpty) {
+      final snapshot = await dbRef.get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final existingProducts = snapshot.value as Map;
+        for (var entry in existingProducts.entries) {
+          final existingName =
+              entry.value['name']?.toString().trim().toLowerCase();
+          if (existingName == productName) {
+            throw StateError(
+                'A product with the name "${productData['name']}" already exists. Duplicate product names are not allowed.');
+          }
+        }
+      }
+    }
+
+    final quantity = productData['quantity'];
+    if (quantity == null) {
+      throw StateError('Product quantity must be specified.');
+    }
+
     final productId = DateTime.now().millisecondsSinceEpoch.toString();
     String? imageUrl;
 
-    if (manualImageReference != null && manualImageReference.trim().isNotEmpty) {
+    if (manualImageReference != null &&
+        manualImageReference.trim().isNotEmpty) {
       try {
         imageUrl = await _resolveManualImageReference(manualImageReference);
       } catch (e) {
@@ -93,21 +132,24 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     productData['productId'] = productId;
     productData['ownerId'] = user!.uid;
     productData['createdAt'] = ServerValue.timestamp;
+    productData['status'] =
+        (quantity is num && quantity > 0) ? 'in_stock' : 'out_of_stock';
 
     await dbRef.child(productId).set(productData);
   }
 
   Future<void> updateProduct(
-      String key,
-      Map<String, dynamic> productData, {
-        File? image,
-        String? manualImageReference,
-        required String oldImageUrl,
-        dynamic existingCreatedAt,
-      }) async {
+    String key,
+    Map<String, dynamic> productData, {
+    File? image,
+    String? manualImageReference,
+    required String oldImageUrl,
+    dynamic existingCreatedAt,
+  }) async {
     String? imageUrl;
 
-    if (manualImageReference != null && manualImageReference.trim().isNotEmpty) {
+    if (manualImageReference != null &&
+        manualImageReference.trim().isNotEmpty) {
       try {
         imageUrl = await _resolveManualImageReference(manualImageReference);
       } catch (e) {
@@ -128,11 +170,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     productData['imageUrl'] = imageUrl;
     productData['createdAt'] = existingCreatedAt ?? ServerValue.timestamp;
     productData['ownerId'] = user!.uid;
+    final quantity = productData['quantity'];
+    productData['status'] =
+        (quantity is num && quantity > 0) ? 'in_stock' : 'out_of_stock';
 
     await dbRef.child(key).update(productData);
   }
 
-  Future<String?> _resolveManualImageReference(String? rawInput, {String? ownerId}) async {
+  Future<String?> _resolveManualImageReference(String? rawInput) async {
     final trimmed = rawInput?.trim() ?? '';
     if (trimmed.isEmpty) {
       return null;
@@ -141,7 +186,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       return trimmed;
     }
 
-    // If it's already an HTTP URL or a data URL, return it. Otherwise try assets.
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
@@ -149,7 +193,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       return trimmed;
     }
 
-    // Fallback: treat as asset or product image filename stored in assets
     return trimmed.startsWith('assets/') ? trimmed : 'assets/$trimmed';
   }
 
@@ -178,7 +221,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     final _formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: product?['name'] ?? '');
     final descriptionController =
-    TextEditingController(text: product?['description'] ?? '');
+        TextEditingController(text: product?['description'] ?? '');
     final priceController = TextEditingController(
       text: product?['price'] != null ? product!['price'].toString() : '',
     );
@@ -201,7 +244,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           : oldImageUrl.replaceFirst('product_images/', ''),
     );
 
-    String? previewUrl = oldImageUrl.isNotEmpty ? oldImageUrl : 'assets/pharmacy.jpg';
+    String? previewUrl =
+        oldImageUrl.isNotEmpty ? oldImageUrl : 'assets/pharmacy.jpg';
 
     await showDialog(
       context: context,
@@ -232,7 +276,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                   children: [
                     TextFormField(
                       controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Product Name'),
+                      decoration:
+                          const InputDecoration(labelText: 'Product Name'),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter product name';
@@ -245,7 +290,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       value: selectedCategory,
                       decoration: const InputDecoration(labelText: 'Category'),
                       items: categories
-                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                          .map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)))
                           .toList(),
                       onChanged: (val) => setDialogState(() {
                         selectedCategory = val;
@@ -260,7 +306,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: descriptionController,
-                      decoration: const InputDecoration(labelText: 'Description'),
+                      decoration:
+                          const InputDecoration(labelText: 'Description'),
                       maxLines: 2,
                       validator: (value) {
                         if (value != null && value.length > 300) {
@@ -272,12 +319,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: priceController,
-                      decoration: const InputDecoration(labelText: 'Price (OMR)'),
+                      decoration:
+                          const InputDecoration(labelText: 'Price (OMR)'),
                       keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                          const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         final v = double.tryParse(value ?? '');
-                        if (v == null || v <= 0) return 'Enter a valid price > 0';
+                        if (v == null || v <= 0)
+                          return 'Enter a valid price > 0';
                         return null;
                       },
                     ),
@@ -288,7 +337,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       keyboardType: TextInputType.number,
                       validator: (value) {
                         final v = int.tryParse(value ?? '');
-                        if (v == null || v < 0) return 'Enter a valid quantity ≥ 0';
+                        if (v == null || v < 0)
+                          return 'Enter a valid quantity ≥ 0';
                         return null;
                       },
                     ),
@@ -326,14 +376,31 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       ],
                     ),
                     if (expiryDate == null)
-                      const Text('Expiry date is required', style: TextStyle(color: Colors.red))
-                    else if (expiryDate!.isBefore(DateTime.now()))
-                      const Text('Expiry date must be today or later', style: TextStyle(color: Colors.red)),
+                      const Text('Expiry date is required',
+                          style: TextStyle(color: Colors.red))
+                    else ...[
+                      Builder(
+                        builder: (_) {
+                          final today = DateTime.now();
+                          final todayOnly =
+                              DateTime(today.year, today.month, today.day);
+                          final expiryOnly = DateTime(expiryDate!.year,
+                              expiryDate!.month, expiryDate!.day);
+                          if (expiryOnly.isBefore(todayOnly) ||
+                              expiryOnly.isAtSameMomentAs(todayOnly)) {
+                            return const Text(
+                                'Expiry date must be a future date (cannot be today or past)',
+                                style: TextStyle(color: Colors.red));
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     ElevatedButton(
                       onPressed: () async {
-                        final picked =
-                        await _picker.pickImage(source: ImageSource.gallery);
+                        final picked = await _picker.pickImage(
+                            source: ImageSource.gallery);
                         if (picked != null) {
                           setDialogState(() {
                             imageFile = File(picked.path);
@@ -349,9 +416,10 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       controller: imageReferenceController,
                       decoration: const InputDecoration(
                         labelText: 'Image name or URL',
-                        hintText: 'e.g. panadol.jpg or https://example.com/image.jpg',
+                        hintText:
+                            'e.g. panadol.jpg or https://example.com/image.jpg',
                         helperText:
-                        'Leave empty to keep the uploaded file. Non-URLs are looked up under product_images/.',
+                            'Leave empty to keep the uploaded file. Non-URLs are looked up under product_images/.',
                       ),
                       onChanged: (value) => refreshPreview(value),
                     ),
@@ -363,7 +431,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                         previewUrl!,
                         height: 100,
                         errorBuilder: (_, __, ___) =>
-                        const Text('Unable to load preview'),
+                            const Text('Unable to load preview'),
                       )
                     else
                       Container(
@@ -383,7 +451,19 @@ class _PharmacistHomeState extends State<PharmacistHome> {
               TextButton(
                 onPressed: () async {
                   if (!_formKey.currentState!.validate()) return;
-                  if (expiryDate == null || expiryDate!.isBefore(DateTime.now())) {
+                  final today = DateTime.now();
+                  final todayOnly =
+                      DateTime(today.year, today.month, today.day);
+
+                  if (expiryDate == null) {
+                    setDialogState(() {}); // trigger error text
+                    return;
+                  }
+
+                  final expiryOnly = DateTime(
+                      expiryDate!.year, expiryDate!.month, expiryDate!.day);
+                  if (expiryOnly.isBefore(todayOnly) ||
+                      expiryOnly.isAtSameMomentAs(todayOnly)) {
                     setDialogState(() {}); // trigger error text
                     return;
                   }
@@ -393,28 +473,68 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                     'category': selectedCategory ?? 'Other',
                     'description': descriptionController.text.trim(),
                     'price': double.tryParse(priceController.text.trim()) ?? 0,
-                    'quantity': int.tryParse(quantityController.text.trim()) ?? 0,
+                    'quantity':
+                        int.tryParse(quantityController.text.trim()) ?? 0,
                     'requiresPrescription': requiresPrescription,
                     'expiryDate': DateFormat('yyyy-MM-dd').format(expiryDate!),
                   };
 
-                  if (product == null) {
-                    await addProduct(
-                      data,
-                      image: imageFile,
-                      manualImageReference: imageReferenceController.text,
-                    );
-                  } else {
-                    await updateProduct(
-                      product['key'],
-                      data,
-                      image: imageFile,
-                      manualImageReference: imageReferenceController.text,
-                      oldImageUrl: oldImageUrl,
-                      existingCreatedAt: product['createdAt'],
+                  try {
+                    if (product == null) {
+                      await addProduct(
+                        data,
+                        image: imageFile,
+                        manualImageReference: imageReferenceController.text,
+                      );
+                    } else {
+                      final newName =
+                          data['name'].toString().trim().toLowerCase();
+                      final oldName =
+                          product['name']?.toString().trim().toLowerCase();
+                      if (newName != oldName) {
+                        final snapshot = await dbRef.get();
+                        if (snapshot.exists && snapshot.value is Map) {
+                          final existingProducts = snapshot.value as Map;
+                          for (var entry in existingProducts.entries) {
+                            if (entry.key.toString() !=
+                                product['key'].toString()) {
+                              final existingName = entry.value['name']
+                                  ?.toString()
+                                  .trim()
+                                  .toLowerCase();
+                              if (existingName == newName) {
+                                if (!dialogContext.mounted) return;
+                                ScaffoldMessenger.of(dialogContext)
+                                    .showSnackBar(
+                                  SnackBar(
+                                      content: Text(
+                                          'A product with the name "${data['name']}" already exists.')),
+                                );
+                                return;
+                              }
+                            }
+                          }
+                        }
+                      }
+                      await updateProduct(
+                        product['key'],
+                        data,
+                        image: imageFile,
+                        manualImageReference: imageReferenceController.text,
+                        oldImageUrl: oldImageUrl,
+                        existingCreatedAt: product['createdAt'],
+                      );
+                    }
+                    if (!dialogContext.mounted) return;
+                    Navigator.pop(dialogContext);
+                  } catch (e) {
+                    if (!dialogContext.mounted) return;
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              e.toString().replaceAll('StateError: ', ''))),
                     );
                   }
-                  Navigator.pop(dialogContext);
                 },
                 child: const Text('Save'),
               ),
@@ -427,8 +547,10 @@ class _PharmacistHomeState extends State<PharmacistHome> {
 
   @override
   Widget build(BuildContext context) {
-    Color backgroundColor = _isDarkMode ? Colors.grey[900]! : const Color(0xFFB3E5FC);
-    Color appBarColor = _isDarkMode ? Colors.grey[850]! : const Color(0xFF0288D1);
+    Color backgroundColor =
+        _isDarkMode ? Colors.grey[900]! : const Color(0xFFB3E5FC);
+    Color appBarColor =
+        _isDarkMode ? Colors.grey[850]! : const Color(0xFF0288D1);
     Color textColor = _isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
@@ -459,7 +581,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
               );
             },
           ),
-
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
@@ -492,7 +613,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                 filled: true,
                 prefixIcon: const Icon(Icons.search),
                 hintText: "Search by name or category...",
-                hintStyle: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black45),
+                hintStyle: TextStyle(
+                    color: _isDarkMode ? Colors.white70 : Colors.black45),
                 border: const OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => searchQuery = value),
@@ -503,8 +625,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
             child: StreamBuilder(
               stream: dbRef.onValue,
               builder: (context, snapshot) {
-                if (snapshot.hasData &&
-                    snapshot.data!.snapshot.value != null) {
+                if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
                   Map data = (snapshot.data!.snapshot.value as Map);
                   List products = [];
                   data.forEach((key, value) {
@@ -514,30 +635,36 @@ class _PharmacistHomeState extends State<PharmacistHome> {
 
                   products = products
                       .where((p) =>
-                  p['name']
-                      .toString()
-                      .toLowerCase()
-                      .contains(searchQuery.toLowerCase()) ||
-                      p['category']
-                          .toString()
-                          .toLowerCase()
-                          .contains(searchQuery.toLowerCase()))
+                          p['name']
+                              .toString()
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()) ||
+                          p['category']
+                              .toString()
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()))
                       .toList();
 
                   return ListView.builder(
                     itemCount: products.length,
                     itemBuilder: (context, index) {
                       final product = products[index];
-                      final imageUrl = product['imageUrl'] ?? 'assets/pharmacy.jpg';
+                      final imageUrl =
+                          product['imageUrl'] ?? 'assets/pharmacy.jpg';
                       Widget imageWidget;
 
                       if (imageUrl.startsWith('data:')) {
                         try {
-                          final base64Data = imageUrl.split(',').length > 1 ? imageUrl.split(',')[1] : '';
+                          final base64Data = imageUrl.split(',').length > 1
+                              ? imageUrl.split(',')[1]
+                              : '';
                           final bytes = base64Decode(base64Data);
                           imageWidget = Image.memory(bytes,
-                              width: 50, height: 50, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image));
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.broken_image));
                         } catch (_) {
                           imageWidget = const Icon(Icons.broken_image);
                         }
@@ -547,22 +674,23 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                             height: 50,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image));
+                                const Icon(Icons.broken_image));
                       } else if (imageUrl.startsWith('http')) {
                         imageWidget = Image.network(imageUrl,
                             width: 50,
                             height: 50,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) =>
-                            const Icon(Icons.broken_image));
+                                const Icon(Icons.broken_image));
                       } else {
                         imageWidget =
-                        const Icon(Icons.image_not_supported, size: 50);
+                            const Icon(Icons.image_not_supported, size: 50);
                       }
 
                       return Card(
                         color: _isDarkMode ? Colors.grey[800] : Colors.white,
-                        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
                         shape: RoundedRectangleBorder(
                           side: BorderSide(
                               color: _isDarkMode
@@ -573,7 +701,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                         ),
                         child: ListTile(
                           leading: imageWidget,
-                          title: Text(product['name'], style: TextStyle(color: textColor)),
+                          title: Text(product['name'],
+                              style: TextStyle(color: textColor)),
                           subtitle: Text(
                               "Category: ${product['category']}\nPrice: ${product['price']}\nQuantity: ${product['quantity']}\nExpiry: ${product['expiryDate']}",
                               style: TextStyle(color: textColor)),
@@ -582,11 +711,14 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () => showProductDialog(product: product),
+                                icon:
+                                    const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () =>
+                                    showProductDialog(product: product),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => deleteProduct(product['key']),
                               ),
                             ],

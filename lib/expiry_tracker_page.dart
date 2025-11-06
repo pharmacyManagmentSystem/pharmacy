@@ -10,8 +10,8 @@ class ExpiryTrackerPage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
 
-    // تحديد إذا كان المستخدم صيدلي أو عميل
-    final pharmacistSnapshot = await DatabaseService.instance.ref('pharmacy/pharmacists/${user.uid}')
+    final pharmacistSnapshot = await DatabaseService.instance
+        .ref('pharmacy/pharmacists/${user.uid}')
         .get();
 
     if (pharmacistSnapshot.exists) {
@@ -21,14 +21,16 @@ class ExpiryTrackerPage extends StatelessWidget {
     return _loadCustomerOrders(user.uid);
   }
 
-  Future<List<_ExpiryInfo>> _loadPharmacistInventory(String pharmacistId) async {
+  Future<List<_ExpiryInfo>> _loadPharmacistInventory(
+      String pharmacistId) async {
     final snapshot =
-    await DatabaseService.instance.ref('products/$pharmacistId').get();
+        await DatabaseService.instance.ref('products/$pharmacistId').get();
     if (!snapshot.exists) return [];
 
     final items = <_ExpiryInfo>[];
     final raw = snapshot.value;
     Iterable<MapEntry<dynamic, dynamic>> entries;
+
     if (raw is Map) {
       entries = Map<dynamic, dynamic>.from(raw).entries;
     } else if (raw is List) {
@@ -79,7 +81,7 @@ class ExpiryTrackerPage extends StatelessWidget {
 
   Future<List<_ExpiryInfo>> _loadCustomerOrders(String customerId) async {
     final snapshot =
-    await DatabaseService.instance.ref('customer_orders/$customerId').get();
+        await DatabaseService.instance.ref('customer_orders/$customerId').get();
     if (!snapshot.exists) return [];
 
     final raw = snapshot.value;
@@ -89,14 +91,17 @@ class ExpiryTrackerPage extends StatelessWidget {
 
     for (final orderEntry in root.entries) {
       final orderMap = Map<dynamic, dynamic>.from(orderEntry.value as Map);
-      final orderDate = DateTime.tryParse(orderMap['createdAt']?.toString() ?? '');
+      final orderDate =
+          DateTime.tryParse(orderMap['createdAt']?.toString() ?? '');
       final itemsMap = orderMap['items'] as Map<dynamic, dynamic>?;
 
       if (itemsMap == null) continue;
 
       for (final productEntry in itemsMap.entries) {
         final product = Map<dynamic, dynamic>.from(productEntry.value as Map);
-        DateTime? expiry = DateTime.tryParse(product['expiryDate']?.toString() ?? '');
+        DateTime? expiry =
+            DateTime.tryParse(product['expiryDate']?.toString() ?? '');
+
         if (expiry == null) {
           final ownerId = product['ownerId']?.toString() ?? '';
           final productId = productEntry.key.toString();
@@ -174,7 +179,8 @@ class ExpiryTrackerPage extends StatelessWidget {
               final item = items[index];
               final color = _statusColor(item.daysRemaining);
               return Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -237,4 +243,3 @@ class _ExpiryInfo {
   final DateTime expiryDate;
   final int daysRemaining;
 }
-

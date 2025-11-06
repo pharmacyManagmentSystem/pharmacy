@@ -54,12 +54,14 @@ class _CustomerHomeState extends State<CustomerHome> {
           if (_currentIndex != 1)
             Consumer<CustomerAppState>(
               builder: (context, state, _) {
-                final count = state.cartItems.fold<int>(0, (sum, item) => sum + item.quantity);
+                final count = state.cartItems
+                    .fold<int>(0, (sum, item) => sum + item.quantity);
                 return IconButton(
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const Icon(Icons.shopping_cart_outlined, color: Colors.white),
+                      const Icon(Icons.shopping_cart_outlined,
+                          color: Colors.white),
                       if (count > 0)
                         Positioned(
                           right: -4,
@@ -107,7 +109,8 @@ class _CustomerHomeState extends State<CustomerHome> {
       ),
       bottomNavigationBar: Consumer<CustomerAppState>(
         builder: (context, state, _) {
-          final count = state.cartItems.fold<int>(0, (sum, item) => sum + item.quantity);
+          final count =
+              state.cartItems.fold<int>(0, (sum, item) => sum + item.quantity);
           return BottomNavigationBar(
             currentIndex: _currentIndex,
             onTap: (index) => setState(() => _currentIndex = index),
@@ -174,9 +177,9 @@ class _OrdersTab extends StatelessWidget {
       if (data is! Map) return <CustomerOrder>[];
       return data.entries
           .map<CustomerOrder>((entry) => CustomerOrder.fromMap(
-        entry.key.toString(),
-        Map<dynamic, dynamic>.from(entry.value as Map),
-      ))
+                entry.key.toString(),
+                Map<dynamic, dynamic>.from(entry.value as Map),
+              ))
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     });
@@ -210,7 +213,8 @@ class _OrdersTab extends StatelessWidget {
                   borderColor: const Color(0xFF0288D1),
                 ),
                 const SizedBox(height: 16),
-                Text('Placed on $placedAt', style: Theme.of(context).textTheme.bodyMedium),
+                Text('Placed on $placedAt',
+                    style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 16),
                 Text(
                   'Items',
@@ -221,7 +225,7 @@ class _OrdersTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 ...order.items.map(
-                      (item) => Card(
+                  (item) => Card(
                     shape: RoundedRectangleBorder(
                       side: const BorderSide(color: Color(0xFF0288D1)),
                       borderRadius: BorderRadius.circular(8),
@@ -247,7 +251,9 @@ class _OrdersTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text('House / Building: ${order.address['houseNumber'] ?? ''}'),
                 Text('Road: ${order.address['roadNumber'] ?? ''}'),
-                if ((order.address['additionalDirections'] ?? '').toString().isNotEmpty)
+                if ((order.address['additionalDirections'] ?? '')
+                    .toString()
+                    .isNotEmpty)
                   Text('Directions: ${order.address['additionalDirections']}'),
                 const SizedBox(height: 24),
                 Align(
@@ -284,7 +290,8 @@ class _OrdersTab extends StatelessWidget {
 
         final orders = snapshot.data ?? [];
         if (orders.isEmpty) {
-          return const Center(child: Text('You have not placed any orders yet.'));
+          return const Center(
+              child: Text('You have not placed any orders yet.'));
         }
 
         return ListView.separated(

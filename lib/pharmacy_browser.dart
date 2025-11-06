@@ -166,7 +166,7 @@ class _PharmacyCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.shopping_basket_outlined),
-                label: const Text('Start shopping'),
+                label: const Text('Start shopping '),
                 onPressed: () {
                   Navigator.push(
                     context,

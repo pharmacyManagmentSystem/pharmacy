@@ -9,7 +9,12 @@ import 'models/product.dart';
 import 'state/customer_app_state.dart';
 
 class ProductDetailPage extends StatefulWidget {
-  const ProductDetailPage({super.key, required this.product, required this.pharmacyName});
+  const ProductDetailPage({
+    super.key,
+    required this.product,
+    required this.pharmacyName,
+  });
+
   final Product product;
   final String pharmacyName;
 
@@ -42,17 +47,17 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         const SnackBar(content: Text('Prescription uploaded successfully')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload failed: $e')),
+      );
     } finally {
       setState(() => _uploading = false);
     }
   }
 
   Widget _buildProductImage(String path) {
-    // ✅ إذا كان يبدأ بـ "http" => من الإنترنت
     if (path.startsWith('data:')) {
       try {
-        // data:<contentType>;base64,<data>
         final parts = path.split(',');
         final base64Data = parts.length > 1 ? parts[1] : '';
         final bytes = base64Decode(base64Data);
@@ -61,24 +66,24 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
         return const Icon(Icons.broken_image, size: 60);
       }
     }
+
     if (path.startsWith('http')) {
       return Image.network(
         path,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60),
       );
-    }
-    // ✅ إذا كان يحتوي "assets/" أو فقط اسم الصورة => من المشروع المحلي
-    else if (path.contains('assets/') || path.endsWith('.jpg') || path.endsWith('.png')) {
+    } else if (path.contains('assets/') ||
+        path.endsWith('.jpg') ||
+        path.endsWith('.png')) {
       final fixedPath = path.startsWith('assets/') ? path : 'assets/$path';
       return Image.asset(
         fixedPath,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 60),
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.image_not_supported, size: 60),
       );
-    }
-    // ✅ حالة افتراضية إذا لم يوجد مسار
-    else {
+    } else {
       return const Icon(Icons.image_not_supported, size: 60);
     }
   }
@@ -86,6 +91,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
+
     return Scaffold(
       appBar: AppBar(title: Text(p.name)),
       body: ListView(
@@ -99,14 +105,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Text(p.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(p.name,
+              style:
+                  const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Text('Category: ${p.category}'),
           const SizedBox(height: 8),
-          Text('Price: ${p.price.toStringAsFixed(2)} OMR',
-              style: const TextStyle(color: Colors.green, fontSize: 18)),
+          Text(
+            'Price: ${p.price.toStringAsFixed(2)} OMR',
+            style: const TextStyle(color: Colors.green, fontSize: 18),
+          ),
           const SizedBox(height: 12),
-          Text(p.description.isNotEmpty ? p.description : 'No description available.'),
+          Text(p.description.isNotEmpty
+              ? p.description
+              : 'No description available.'),
           const SizedBox(height: 20),
           if (p.requiresPrescription)
             Column(
@@ -117,34 +129,79 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                       ? 'Prescription required.'
                       : 'Prescription uploaded.',
                   style: TextStyle(
-                      color: _prescriptionUrl == null ? Colors.red : Colors.green),
+                    color: _prescriptionUrl == null ? Colors.red : Colors.green,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
                   onPressed: _uploading ? null : _uploadPrescription,
                   icon: _uploading
                       ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.upload_file),
-                  label: Text(_prescriptionUrl == null ? 'Upload prescription' : 'Replace'),
+                  label: Text(_prescriptionUrl == null
+                      ? 'Upload prescription'
+                      : 'Replace'),
                 ),
               ],
             ),
           const SizedBox(height: 16),
           Consumer<CustomerAppState>(
             builder: (context, state, _) => FilledButton(
-              onPressed: () {
+              onPressed: () async {
                 if (p.requiresPrescription && _prescriptionUrl == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please upload a prescription first.')),
+                    const SnackBar(
+                        content: Text('Please upload a prescription first.')),
                   );
                   return;
                 }
-                state.addProductToCart(p, pharmacyName: widget.pharmacyName, prescriptionUrl: _prescriptionUrl);
+
+                if (state.currentPharmacyId != null &&
+                    state.currentPharmacyId != p.ownerId) {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Start new cart?'),
+                      content: Text(
+                        'Your current cart has items from "${state.currentPharmacyName}".\n'
+                        'Do you want to start a new cart from "${widget.pharmacyName}"?',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Start'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm != true) return;
+
+                  state.clearCart();
+                }
+
+                final added = state.addProductToCart(
+                  p,
+                  prescriptionUrl: _prescriptionUrl,
+                  pharmacyName: widget.pharmacyName,
+                );
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${p.name} added to cart')),
+                  SnackBar(
+                    content: Text(
+                      await added
+                          ? '${p.name} added to cart'
+                          : 'Could not add product to cart.',
+                    ),
+                  ),
                 );
               },
               child: const Text('Add to cart'),
@@ -155,4 +212,3 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
     );
   }
 }
-

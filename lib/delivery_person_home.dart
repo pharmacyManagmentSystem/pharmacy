@@ -36,7 +36,7 @@ class DeliveryPersonHome extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              "This is Delivery Person Home",
+              "This is Delivery Person Home ",
               style: TextStyle(fontSize: 18),
             ),
             const SizedBox(height: 20),
