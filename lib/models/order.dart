@@ -51,6 +51,7 @@ class CustomerOrder {
     required this.id,
     required this.customerId,
     required this.customerName,
+    required this.customerEmail,
     required this.pharmacyId,
     required this.pharmacyName,
     required this.total,
@@ -66,6 +67,7 @@ class CustomerOrder {
   final String id;
   final String customerId;
   final String customerName;
+  final String customerEmail;
   final String pharmacyId;
   final String pharmacyName;
   final double total;
@@ -87,8 +89,9 @@ class CustomerOrder {
             final priceRaw = raw['price'];
             final quantityRaw = raw['quantity'];
             final expiryRaw = raw['expiryDate']?.toString();
-            final expiryDate =
-                expiryRaw != null && expiryRaw.isNotEmpty ? DateTime.tryParse(expiryRaw) : null;
+            final expiryDate = expiryRaw != null && expiryRaw.isNotEmpty
+                ? DateTime.tryParse(expiryRaw)
+                : null;
 
             return CartItem(
               product: ProductPlaceholder(
@@ -113,13 +116,15 @@ class CustomerOrder {
       id: id,
       customerId: data['customerId']?.toString() ?? '',
       customerName: data['customerName']?.toString() ?? '',
+      customerEmail: data['customerEmail']?.toString() ?? '',
       pharmacyId: data['pharmacyId']?.toString() ?? '',
       pharmacyName: data['pharmacyName']?.toString() ?? '',
       total: data['total'] is num
           ? (data['total'] as num).toDouble()
           : double.tryParse(data['total']?.toString() ?? '0') ?? 0,
       status: orderStatusFromString(data['status']?.toString() ?? ''),
-      createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
       items: items,
       address: Map<String, dynamic>.from(data['address'] as Map? ?? {}),
       deliveryPersonId: data['deliveryPersonId']?.toString(),

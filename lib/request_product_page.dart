@@ -63,11 +63,9 @@ class _RequestProductPageState extends State<RequestProductPage> {
     try {
       String? imageUrl;
 
-      // ✅ Upload image to Firebase Storage if one is selected
       if (_pickedImage != null) {
         final file = File(_pickedImage!.path);
 
-        // Use StorageService to upload as Base64 to Realtime DB and get a data URL
         final storageService = StorageService();
         imageUrl = await storageService.uploadImageToDatabase(
           file,
@@ -75,7 +73,6 @@ class _RequestProductPageState extends State<RequestProductPage> {
         );
       }
 
-      // ✅ Save request data to Realtime Database
       final requestRef = DatabaseService.instance
           .ref('product_requests/${widget.pharmacyId}')
           .push();
@@ -133,23 +130,26 @@ class _RequestProductPageState extends State<RequestProductPage> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Customer name'),
-                validator: (value) =>
-                value == null || value.isEmpty ? 'Please enter your name' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Please enter your name'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Customer email'),
                 keyboardType: TextInputType.emailAddress,
-                validator: (value) =>
-                value == null || !value.contains('@') ? 'Enter a valid email' : null,
+                validator: (value) => value == null || !value.contains('@')
+                    ? 'Enter a valid email'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _productController,
                 decoration: const InputDecoration(labelText: 'Product name'),
-                validator: (value) =>
-                value == null || value.isEmpty ? 'Enter the product name' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Enter the product name'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -160,7 +160,8 @@ class _RequestProductPageState extends State<RequestProductPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _notesController,
-                decoration: const InputDecoration(labelText: 'Additional notes'),
+                decoration:
+                    const InputDecoration(labelText: 'Additional notes'),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
@@ -188,14 +189,14 @@ class _RequestProductPageState extends State<RequestProductPage> {
                   onPressed: _submitting ? null : _submit,
                   child: _submitting
                       ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                      : const Text('Submit request'),
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Submit request '),
                 ),
               ),
             ],

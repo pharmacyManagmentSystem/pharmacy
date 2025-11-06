@@ -5,11 +5,13 @@ import 'services/database_service.dart';
 import 'customize_notifications_pharmacists.dart';
 import 'pharmacist_requests_page.dart';
 import 'pharmacist_prescriptions_page.dart';
+import 'expiry_tracker_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function(bool) onThemeChanged;
   final bool isDarkMode;
-  const ProfilePage({super.key, required this.onThemeChanged,required this.isDarkMode});
+  const ProfilePage(
+      {super.key, required this.onThemeChanged, required this.isDarkMode});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -59,7 +61,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 TextField(
                   controller: confirmPasswordController,
-                  decoration: const InputDecoration(labelText: 'Repeat New Password'),
+                  decoration:
+                      const InputDecoration(labelText: 'Repeat New Password'),
                   obscureText: true,
                 ),
               ],
@@ -75,7 +78,8 @@ class _ProfilePageState extends State<ProfilePage> {
               height: 45,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+                  backgroundColor:
+                      isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
@@ -85,13 +89,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
                   if (newPassword != confirmPassword) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('New passwords do not match')),
+                      const SnackBar(
+                          content: Text('New passwords do not match')),
                     );
                     return;
                   }
 
-                  final passwordRegex =
-                  RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
+                  final passwordRegex = RegExp(
+                      r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
 
                   if (!passwordRegex.hasMatch(newPassword)) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +117,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     await user.updatePassword(newPassword);
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Password changed successfully')),
+                      const SnackBar(
+                          content: Text('Password changed successfully')),
                     );
                     Navigator.pop(context);
                   } catch (e) {
@@ -135,15 +141,22 @@ class _ProfilePageState extends State<ProfilePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         DatabaseReference ref =
-        DatabaseService.instance.ref('pharmacy/pharmacists/${user.uid}');
+            DatabaseService.instance.ref('pharmacy/pharmacists/${user.uid}');
         DataSnapshot snapshot = await ref.get();
 
         if (snapshot.exists) {
           setState(() {
-            pharmacyName = snapshot.child('name').value?.toString() ?? 'No Name';
+            pharmacyName =
+                snapshot.child('name').value?.toString() ?? 'No Name';
             email = snapshot.child('email').value?.toString() ?? 'No Email';
             phone = snapshot.child('phone').value?.toString() ?? '';
-            address = snapshot.child('pharmacy_address').value?.toString() ?? '';
+            address =
+                snapshot.child('pharmacy_address').value?.toString() ?? '';
+            final darkModeValue = snapshot.child('darkMode').value;
+            if (darkModeValue is bool) {
+              isDarkMode = darkModeValue;
+              widget.onThemeChanged(isDarkMode);
+            }
             isLoading = false;
           });
         } else {
@@ -216,7 +229,8 @@ class _ProfilePageState extends State<ProfilePage> {
               height: 45,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+                  backgroundColor:
+                      isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
@@ -226,7 +240,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     'pharmacy_address': addressController.text.trim(),
                   };
 
-                  await DatabaseService.instance.ref('pharmacy/pharmacists/${user.uid}')
+                  await DatabaseService.instance
+                      .ref('pharmacy/pharmacists/${user.uid}')
                       .update(updates);
 
                   setState(() {
@@ -252,7 +267,8 @@ class _ProfilePageState extends State<ProfilePage> {
       height: 50,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+          backgroundColor:
+              isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
           foregroundColor: Colors.white,
         ),
         onPressed: onPressed,
@@ -263,9 +279,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Colors based on dark mode
-    Color backgroundColor = isDarkMode ? Colors.grey[900]! : const Color(0xFFB3E5FC);
-    Color appBarColor = isDarkMode ? Colors.grey[850]! : const Color(0xFF0288D1);
+    Color backgroundColor =
+        isDarkMode ? Colors.grey[900]! : const Color(0xFFB3E5FC);
+    Color appBarColor =
+        isDarkMode ? Colors.grey[850]! : const Color(0xFF0288D1);
     Color textColor = isDarkMode ? Colors.white : Colors.black;
 
     return Scaffold(
@@ -282,95 +299,120 @@ class _ProfilePageState extends State<ProfilePage> {
         child: isLoading
             ? const Center(child: CircularProgressIndicator())
             : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            const Center(
-              child: CircleAvatar(
-                radius: 40,
-                backgroundColor: Colors.black26,
-                child: Icon(Icons.person, size: 50),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  const Center(
+                    child: CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Colors.black26,
+                      child: Icon(Icons.person, size: 50),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: Text(
+                      pharmacyName,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                  Center(
+                      child: Text(email, style: TextStyle(color: textColor))),
+                  if (phone.isNotEmpty)
+                    Center(
+                        child: Text(phone, style: TextStyle(color: textColor))),
+                  if (address.isNotEmpty)
+                    Center(
+                        child:
+                            Text(address, style: TextStyle(color: textColor))),
+                  const Divider(thickness: 1),
+                  const SizedBox(height: 10),
+                  buildButton("Edit Profile", _showEditProfileDialog),
+                  const SizedBox(height: 10),
+                  buildButton(
+                    "Check soon expiry dates",
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ExpiryTrackerPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    title: Text("Turn On Dark Mode",
+                        style: TextStyle(color: textColor)),
+                    value: isDarkMode,
+                    onChanged: (val) async {
+                      setState(() {
+                        isDarkMode = val;
+                      });
+                      widget.onThemeChanged(val);
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        try {
+                          await DatabaseService.instance
+                              .ref('pharmacy/pharmacists/${user.uid}')
+                              .update({'darkMode': val});
+                        } catch (e) {
+                          debugPrint('Error saving dark mode: $e');
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  buildButton(
+                    "Check Requested Products",
+                    () {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PharmacistRequestsPage(pharmacyId: user.uid),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  buildButton(
+                    "View Uploaded Prescription",
+                    () {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PharmacistPrescriptionsPage(pharmacyId: user.uid),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  buildButton(
+                    "Customize Notifications",
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const CustomizeNotificationsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  buildButton("Change Password", _showChangePasswordDialog),
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                pharmacyName,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-              ),
-            ),
-            Center(child: Text(email, style: TextStyle(color: textColor))),
-            if (phone.isNotEmpty)
-              Center(child: Text(phone, style: TextStyle(color: textColor))),
-            if (address.isNotEmpty)
-              Center(child: Text(address, style: TextStyle(color: textColor))),
-            const Divider(thickness: 1),
-            const SizedBox(height: 10),
-
-            buildButton("Edit Profile", _showEditProfileDialog),
-            const SizedBox(height: 10),
-            buildButton("Check soon expiry dates", () {}),
-            const SizedBox(height: 10),
-            SwitchListTile(
-              title: Text("Turn On Dark Mode", style: TextStyle(color: textColor)),
-              value: isDarkMode,
-              onChanged: (val) {
-                setState(() {
-                  isDarkMode = val;
-                });
-                widget.onThemeChanged(val);
-              },
-            ),
-            const SizedBox(height: 10),
-            buildButton(
-              "Check Requested Products",
-                  () {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PharmacistRequestsPage(pharmacyId: user.uid),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-            buildButton(
-              "View Uploaded Prescription",
-                  () {
-                final user = FirebaseAuth.instance.currentUser;
-                if (user == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        PharmacistPrescriptionsPage(pharmacyId: user.uid),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-            buildButton(
-              "Customize Notifications",
-                  () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CustomizeNotificationsPage(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-            buildButton("Change Password", _showChangePasswordDialog),
-          ],
-        ),
       ),
     );
   }

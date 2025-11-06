@@ -7,7 +7,7 @@ import 'login.dart';
 
 class Registration extends StatefulWidget {
   final Function(bool) onThemeChanged;
-  const Registration({super.key,required this.onThemeChanged});
+  const Registration({super.key, required this.onThemeChanged});
 
   @override
   State<Registration> createState() => _RegistrationState();
@@ -39,6 +39,7 @@ class _RegistrationState extends State<Registration> {
           'fullName': fullName,
           'email': email,
           'phoneNumber': phoneNumber,
+          'status': 'active',
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -49,12 +50,12 @@ class _RegistrationState extends State<Registration> {
           MaterialPageRoute(
             builder: (context) => CustomerHome(
               onThemeChanged: widget.onThemeChanged,
-
               onLogout: () {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => Login(onThemeChanged: widget.onThemeChanged),
+                    builder: (context) =>
+                        Login(onThemeChanged: widget.onThemeChanged),
                   ),
                   (_) => false,
                 );
@@ -90,7 +91,10 @@ class _RegistrationState extends State<Registration> {
                   const SizedBox(height: 20),
                   const Text(
                     'Sign Up',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue),
+                    style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue),
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
@@ -98,7 +102,9 @@ class _RegistrationState extends State<Registration> {
                       hintText: 'Full Name',
                       border: OutlineInputBorder(),
                     ),
-                    validator: (value) => value == null || value.isEmpty ? 'Please enter your full name.' : null,
+                    validator: (value) => value == null || value.isEmpty
+                        ? 'Please enter your full name.'
+                        : null,
                     onChanged: (value) => fullName = value.trim(),
                   ),
                   const SizedBox(height: 15),
@@ -109,8 +115,11 @@ class _RegistrationState extends State<Registration> {
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter your email address.';
-                      if (!RegExp(r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,}$').hasMatch(value)) {
+                      if (value == null || value.isEmpty)
+                        return 'Please enter your email address.';
+                      if (!RegExp(
+                              r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,}$')
+                          .hasMatch(value)) {
                         return 'Please enter a valid email address.';
                       }
                       return null;
@@ -119,14 +128,14 @@ class _RegistrationState extends State<Registration> {
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
-
                     decoration: const InputDecoration(
                       hintText: 'Phone Number',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.phone,
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please enter your phone number.';
+                      if (value == null || value.isEmpty)
+                        return 'Please enter your phone number.';
                       if (!RegExp(r'^[97][0-9]{7}$').hasMatch(value)) {
                         return 'Please enter a valid 8-digit phone number. starting with 9 or 7 only';
                       }
@@ -149,7 +158,7 @@ class _RegistrationState extends State<Registration> {
                         return 'Password must be 6-20 characters long.';
                       }
                       if (!RegExp(r'(?=.*[a-z])').hasMatch(value)) {
-                        return 'Password must contain at least one lowercase letter.';
+                        return 'Password must contain at least one lowercase letter. ';
                       }
                       if (!RegExp(r'(?=.*[A-Z])').hasMatch(value)) {
                         return 'Password must contain at least one uppercase letter.';
@@ -157,7 +166,8 @@ class _RegistrationState extends State<Registration> {
                       if (!RegExp(r'(?=.*\d)').hasMatch(value)) {
                         return 'Password must contain at least one number.';
                       }
-                      if (!RegExp(r'(?=.*[!@#$%^&*(),.?":{}|<>])').hasMatch(value)) {
+                      if (!RegExp(r'(?=.*[!@#$%^&*(),.?":{}|<>])')
+                          .hasMatch(value)) {
                         return 'Password must contain at least one special character.';
                       }
                       return null;
@@ -172,7 +182,8 @@ class _RegistrationState extends State<Registration> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) return 'Please confirm your password.';
+                      if (value == null || value.isEmpty)
+                        return 'Please confirm your password.';
                       if (value != password) return 'Passwords do not match.';
                       return null;
                     },
@@ -192,8 +203,9 @@ class _RegistrationState extends State<Registration> {
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-
-                        MaterialPageRoute(builder: (context) =>  Login(onThemeChanged: widget.onThemeChanged)),
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                Login(onThemeChanged: widget.onThemeChanged)),
                       );
                     },
                     child: const Text(
@@ -210,4 +222,3 @@ class _RegistrationState extends State<Registration> {
     );
   }
 }
-
