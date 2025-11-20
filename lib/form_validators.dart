@@ -32,7 +32,7 @@ class FormValidators {
       return 'Password must contain at least one uppercase letter.';
     }
     if (!RegExp(r'(?=.*\d)').hasMatch(value)) {
-      return 'Password must contain at least one number.';
+      return 'Password must contain at least one number .';
     }
     if (!RegExp(r'(?=.*[!@#$%^&*(),.?":{}|<>])').hasMatch(value)) {
       return 'Password must contain at least one special character.';

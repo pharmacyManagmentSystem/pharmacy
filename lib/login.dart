@@ -26,7 +26,12 @@ class _LoginState extends State<Login> {
   final TextEditingController passwordController = TextEditingController();
 
   String selectedRole = 'Customer';
-  final List<String> roles = ['Customer', 'Pharmacist', 'Delivery Person', 'Admin'];
+  final List<String> roles = [
+    'Customer',
+    'Pharmacist',
+    'Delivery Person',
+    'Admin'
+  ];
 
   Future<void> loginUser() async {
     final email = emailController.text.trim().toLowerCase();
@@ -66,7 +71,7 @@ class _LoginState extends State<Login> {
           path = 'admins';
           break;
         default:
-          showMessage('Invalid role selected');
+          showMessage('Invalid role selected ');
           return;
       }
 
@@ -79,13 +84,52 @@ class _LoginState extends State<Login> {
       if (!mounted) return;
 
       if (snapshot.exists) {
+        if (selectedRole == 'Customer' && snapshot.value is Map) {
+          final data = snapshot.value as Map;
+          final userData = data.values.first;
+          if (userData is Map) {
+            final status =
+                userData['status']?.toString().toLowerCase() ?? 'active';
+            if (status == 'suspended') {
+              showMessage(
+                  'Your account has been suspended. Please contact support.');
+              return;
+            }
+            if (status == 'deleted') {
+              showMessage(
+                  'Your account has been deleted. Please contact support.');
+              return;
+            }
+          }
+        }
+
+        bool userDarkMode = false;
+        if (snapshot.value is Map) {
+          final allUsers = snapshot.value as Map;
+          for (var userEntry in allUsers.entries) {
+            final userData = userEntry.value;
+            if (userData is Map && userData['email'] == email) {
+              userDarkMode = userData['darkMode'] == true;
+              break;
+            }
+          }
+        }
+
+        widget.onThemeChanged(userDarkMode);
+
         late final Widget destination;
         switch (selectedRole) {
           case 'Pharmacist':
-            destination = PharmacistHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
+            destination = PharmacistHome(
+              onThemeChanged: widget.onThemeChanged,
+              isDarkMode: userDarkMode,
+            );
             break;
           case 'Delivery Person':
-            destination = DeliveryPersonHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
+            destination = DeliveryPersonHome(
+              onThemeChanged: widget.onThemeChanged,
+              isDarkMode: userDarkMode,
+            );
             break;
           case 'Customer':
             destination = CustomerHome(
@@ -94,7 +138,8 @@ class _LoginState extends State<Login> {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => Login(onThemeChanged: widget.onThemeChanged),
+                    builder: (context) =>
+                        Login(onThemeChanged: widget.onThemeChanged),
                   ),
                   (_) => false,
                 );
@@ -143,7 +188,10 @@ class _LoginState extends State<Login> {
               const SizedBox(height: 16),
               const Text(
                 'Sign In',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black),
               ),
               const SizedBox(height: 32),
               DropdownButtonFormField<String>(
@@ -153,10 +201,12 @@ class _LoginState extends State<Login> {
                     selectedRole = value!;
                   });
                 },
-                decoration: const InputDecoration(labelText: 'Select Your Role'),
+                decoration:
+                    const InputDecoration(labelText: 'Select Your Role'),
                 items: roles
                     .map(
-                      (role) => DropdownMenuItem(value: role, child: Text(role)),
+                      (role) =>
+                          DropdownMenuItem(value: role, child: Text(role)),
                     )
                     .toList(),
               ),
@@ -197,7 +247,8 @@ class _LoginState extends State<Login> {
                     ),
                   );
                 },
-                child: const Text('Forgot Password?', style: TextStyle(color: Colors.blue)),
+                child: const Text('Forgot Password?',
+                    style: TextStyle(color: Colors.blue)),
               ),
               if (selectedRole == 'Customer')
                 TextButton(
@@ -205,11 +256,13 @@ class _LoginState extends State<Login> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => Registration(onThemeChanged: widget.onThemeChanged),
+                        builder: (context) =>
+                            Registration(onThemeChanged: widget.onThemeChanged),
                       ),
                     );
                   },
-                  child: const Text("Didn't Have an account yet?", style: TextStyle(color: Colors.blue)),
+                  child: const Text("Didn't Have an account yet?",
+                      style: TextStyle(color: Colors.blue)),
                 ),
             ],
           ),
@@ -218,4 +271,3 @@ class _LoginState extends State<Login> {
     );
   }
 }
-

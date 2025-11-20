@@ -45,14 +45,14 @@ class _LocationCapturePageState extends State<LocationCapturePage> {
                 controller: _houseController,
                 decoration: const InputDecoration(labelText: 'House / Building number'),
                 validator: (value) =>
-                    value == null || value.isEmpty ? 'Enter your house or building number' : null,
+                value == null || value.isEmpty ? 'Enter your house or building number' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _roadController,
                 decoration: const InputDecoration(labelText: 'Road number'),
                 validator: (value) =>
-                    value == null || value.isEmpty ? 'Enter the road number' : null,
+                value == null || value.isEmpty ? 'Enter the road number' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(

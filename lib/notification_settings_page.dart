@@ -74,7 +74,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             title: const Text('Prescription updates'),
           ),
           const Divider(),
-          const Text('Delivery method', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('Delivery method ', style: TextStyle(fontWeight: FontWeight.bold)),
           SwitchListTile(
             value: _preferences.email,
             onChanged: (value) => setState(() => _preferences.email = value),

@@ -15,7 +15,7 @@ class ManagePharmacistPage extends StatefulWidget {
 
 class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
   final DatabaseReference dbRef =
-  DatabaseService.instance.root().child("pharmacy/pharmacists");
+      DatabaseService.instance.root().child("pharmacy/pharmacists");
 
   List<Map<String, dynamic>> allPharmacists = [];
   List<Map<String, dynamic>> filteredPharmacists = [];
@@ -58,22 +58,26 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
     } else {
       filteredPharmacists = allPharmacists
           .where((pharmacist) => pharmacist["email"]
-          .toLowerCase()
-          .contains(searchQuery.toLowerCase()))
+              .toLowerCase()
+              .contains(searchQuery.toLowerCase()))
           .toList();
     }
   }
 
   void _showPharmacistDialog({Map<String, dynamic>? pharmacist}) {
+    final _formKey = GlobalKey<FormState>();
+
     final nameController =
-    TextEditingController(text: pharmacist?["name"] ?? "");
+        TextEditingController(text: pharmacist?["name"] ?? "");
     final emailController =
-    TextEditingController(text: pharmacist?["email"] ?? "");
+        TextEditingController(text: pharmacist?["email"] ?? "");
     final phoneController =
-    TextEditingController(text: pharmacist?["phone"] ?? "");
+        TextEditingController(text: pharmacist?["phone"] ?? "");
     final addressController =
-    TextEditingController(text: pharmacist?["pharmacy_address"] ?? "");
-    final passwordController = TextEditingController();
+        TextEditingController(text: pharmacist?["pharmacy_address"] ?? "");
+    final passwordController = pharmacist == null
+        ? TextEditingController()
+        : null; // only for new pharmacist
 
     File? pickedImage;
     String? currentImageUrl = pharmacist?["imageUrl"];
@@ -89,16 +93,7 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
     }
 
     Future<void> savePharmacist() async {
-      if (nameController.text.isEmpty ||
-          emailController.text.isEmpty ||
-          phoneController.text.isEmpty ||
-          addressController.text.isEmpty ||
-          (pharmacist == null && passwordController.text.isEmpty)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please fill all required fields")),
-        );
-        return;
-      }
+      if (!_formKey.currentState!.validate()) return;
 
       String? imageUrl = currentImageUrl;
 
@@ -114,19 +109,19 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
         try {
           UserCredential userCred = await FirebaseAuth.instance
               .createUserWithEmailAndPassword(
-              email: emailController.text.trim(),
-              password: passwordController.text.trim());
+                  email: emailController.text.trim(),
+                  password: passwordController!.text.trim());
 
           String uid = userCred.user!.uid;
 
           await dbRef.child(uid).set({
             "id": uid,
             "uid": uid,
-            "name": nameController.text,
-            "email": emailController.text,
-            "phone": phoneController.text,
+            "name": nameController.text.trim(),
+            "email": emailController.text.trim(),
+            "phone": phoneController.text.trim(),
             "imageUrl": imageUrl ?? "",
-            "pharmacy_address": addressController.text,
+            "pharmacy_address": addressController.text.trim(),
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -139,11 +134,11 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
         }
       } else {
         await dbRef.child(pharmacist["id"]).update({
-          "name": nameController.text,
-          "email": emailController.text,
-          "phone": phoneController.text,
+          "name": nameController.text.trim(),
+          "email": emailController.text.trim(),
+          "phone": phoneController.text.trim(),
           "imageUrl": imageUrl ?? "",
-          "pharmacy_address": addressController.text,
+          "pharmacy_address": addressController.text.trim(),
           "uid": pharmacist["id"],
         });
       }
@@ -155,57 +150,103 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
       context: context,
       builder: (context) => AlertDialog(
         title:
-        Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
+            Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
         content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: pickImage,
-                child: CircleAvatar(
-                  radius: 40,
-                  backgroundImage: pickedImage != null
-                      ? FileImage(pickedImage!)
-                      : (currentImageUrl != null && currentImageUrl.isNotEmpty)
-                      ? NetworkImage(currentImageUrl) as ImageProvider
-                      : null,
-                  child: (pickedImage == null &&
-                      (currentImageUrl == null || currentImageUrl.isEmpty))
-                      ? const Icon(Icons.person, size: 40)
-                      : null,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: pickImage,
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundImage: pickedImage != null
+                        ? FileImage(pickedImage!)
+                        : (currentImageUrl != null &&
+                                currentImageUrl.isNotEmpty)
+                            ? NetworkImage(currentImageUrl) as ImageProvider
+                            : null,
+                    child: (pickedImage == null &&
+                            (currentImageUrl == null ||
+                                currentImageUrl.isEmpty))
+                        ? const Icon(Icons.person, size: 40)
+                        : null,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: "Name"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: "Email"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: "Phone"),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: addressController,
-                decoration:
-                const InputDecoration(labelText: "Pharmacy Address"),
-              ),
-              if (pharmacist == null) ...[
                 const SizedBox(height: 10),
-                TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(labelText: "Password"),
-                  obscureText: true,
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: "Name"),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Please enter the pharmacist's name";
+                    }
+                    return null;
+                  },
                 ),
-              ]
-            ],
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: "Email"),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Please enter the email";
+                    }
+                    if (!RegExp(r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,7}$')
+                        .hasMatch(value)) {
+                      return "Enter a valid email address";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                      labelText: "Phone (8 digits starting with 9 or 7)"),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Please enter a phone number";
+                    }
+                    if (!RegExp(r'^[97]\d{7}$').hasMatch(value)) {
+                      return "Phone must be 8 digits and start with 9 or 7";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: addressController,
+                  decoration:
+                      const InputDecoration(labelText: "Pharmacy Address"),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return "Please enter the pharmacy address";
+                    }
+                    return null;
+                  },
+                ),
+                if (pharmacist == null) ...[
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(labelText: "Password"),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return "Please enter a password";
+                      }
+                      if (value.length < 6) {
+                        return "Password must be at least 6 characters long";
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -249,9 +290,9 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFB3E5FC), // Baby blue background
+      backgroundColor: const Color(0xFFB3E5FC),
       appBar: AppBar(
-        backgroundColor: Color(0xFF0288D1),
+        backgroundColor: const Color(0xFF0288D1),
         title: const Row(
           children: [
             CircleAvatar(
@@ -259,16 +300,11 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
               radius: 16,
             ),
             SizedBox(width: 10),
-            Text(
-              "Manage Pharmacists",
-              style: TextStyle(color: Colors.white),
-            ),
+            Text("Manage Pharmacists", style: TextStyle(color: Colors.white)),
           ],
         ),
       ),
-
       body: Column(
-
         children: [
           const SizedBox(height: 16),
           Padding(
@@ -278,14 +314,14 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
               height: 45,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:  Color(0xFF0288D1),
+                  backgroundColor: const Color(0xFF0288D1),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: const Text(
-                  "Add New Pharmacy",
+                  "Add New Pharmacist",
                   style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
                 onPressed: () => _showPharmacistDialog(),
@@ -293,7 +329,6 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // 🔹 Search Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: TextField(
@@ -315,8 +350,6 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
             ),
           ),
           const SizedBox(height: 10),
-
-          // 🔹 Pharmacist Cards
           Expanded(
             child: ListView.builder(
               itemCount: filteredPharmacists.length,
@@ -325,21 +358,24 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
                 return Card(
                   color: Colors.white,
                   shape: RoundedRectangleBorder(
-                    side: const BorderSide(color:  Color(0xFF0288D1), width: 1.5),
+                    side:
+                        const BorderSide(color: Color(0xFF0288D1), width: 1.5),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   margin:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundImage: pharmacist["imageUrl"].isNotEmpty
                           ? NetworkImage(pharmacist["imageUrl"])
                           : const AssetImage("assets/pharmacy.jpg")
-                      as ImageProvider,
+                              as ImageProvider,
                     ),
-                    title: Text(pharmacist["name"],
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
+                    title: Text(
+                      pharmacist["name"],
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -352,7 +388,8 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Color(0xFF0288D1)),
+                          icon:
+                              const Icon(Icons.edit, color: Color(0xFF0288D1)),
                           onPressed: () =>
                               _showPharmacistDialog(pharmacist: pharmacist),
                         ),

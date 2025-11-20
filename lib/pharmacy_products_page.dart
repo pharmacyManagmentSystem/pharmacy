@@ -32,7 +32,8 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
   @override
   void initState() {
     super.initState();
-    _productsRef = DatabaseService.instance.ref('products/${widget.pharmacyId}');
+    _productsRef =
+        DatabaseService.instance.ref('products/${widget.pharmacyId}');
   }
 
   @override
@@ -56,7 +57,7 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
         path,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) =>
-        const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+            const Icon(Icons.broken_image, size: 50, color: Colors.grey),
       );
     } else {
       final fixedPath = path.startsWith('assets/') ? path : 'assets/$path';
@@ -64,7 +65,7 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
         fixedPath,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) =>
-        const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
+            const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
       );
     }
   }
@@ -100,7 +101,6 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔍 شريط البحث
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -108,19 +108,17 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _query = '');
-                  },
-                  icon: const Icon(Icons.clear),
-                )
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
                     : null,
               ),
               onChanged: (value) => setState(() => _query = value.trim()),
             ),
             const SizedBox(height: 12),
-
-            // 🔹 الفلترة + المنتجات
             StreamBuilder<DatabaseEvent>(
               stream: _productsRef.onValue,
               builder: (context, snapshot) {
@@ -148,18 +146,18 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                   });
                 }
 
-                final categories = <String>{'All'}
-                  ..addAll(products
-                      .map((p) => p.category)
-                      .where((c) => c.isNotEmpty)
-                      .toSet());
+                final categories = <String>{'All'}..addAll(products
+                    .map((p) => p.category)
+                    .where((c) => c.isNotEmpty)
+                    .toSet());
 
                 final filtered = products.where((p) {
                   final matchQuery = _query.isEmpty ||
                       p.name.toLowerCase().contains(_query.toLowerCase());
-                  final matchCategory =
-                      _selectedCategory == 'All' || p.category == _selectedCategory;
-                  return matchQuery && matchCategory;
+                  final matchCategory = _selectedCategory == 'All' ||
+                      p.category == _selectedCategory;
+                  final isAvailable = p.quantity > 0;
+                  return matchQuery && matchCategory && isAvailable;
                 }).toList()
                   ..sort((a, b) => a.name.compareTo(b.name));
 
@@ -167,7 +165,6 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 🏷️ شريط الفئات
                       SizedBox(
                         height: 40,
                         child: ListView(
@@ -179,20 +176,18 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                               child: ChoiceChip(
                                 label: Text(category),
                                 selected: selected,
-                                onSelected: (_) =>
-                                    setState(() => _selectedCategory = category),
+                                onSelected: (_) => setState(
+                                    () => _selectedCategory = category),
                               ),
                             );
                           }).toList(),
                         ),
                       ),
                       const SizedBox(height: 16),
-
-                      // 🧱 شبكة المنتجات
                       Expanded(
                         child: GridView.builder(
                           gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,
                             crossAxisSpacing: 10,
                             mainAxisSpacing: 12,
@@ -220,12 +215,13 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(10),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
                                         child: ClipRRect(
                                           borderRadius:
-                                          BorderRadius.circular(12),
+                                              BorderRadius.circular(12),
                                           child: _buildProductImage(p.imageUrl),
                                         ),
                                       ),
@@ -237,7 +233,6 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                                           fontSize: 16,
                                         ),
                                       ),
-                                      // ✅ عرض نوع المنتج (category)
                                       Text(
                                         p.category,
                                         style: const TextStyle(
@@ -245,7 +240,6 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                                           color: Colors.blueGrey,
                                         ),
                                       ),
-                                      // ✅ السعر
                                       Text(
                                         '${p.price.toStringAsFixed(2)} OMR',
                                         style: const TextStyle(

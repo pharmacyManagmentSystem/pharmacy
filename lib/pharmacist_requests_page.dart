@@ -18,7 +18,8 @@ class _PharmacistRequestsPageState extends State<PharmacistRequestsPage> {
   @override
   void initState() {
     super.initState();
-    _requestsRef = DatabaseService.instance.ref('product_requests/${widget.pharmacyId}');
+    _requestsRef =
+        DatabaseService.instance.ref('product_requests/${widget.pharmacyId}');
   }
 
   Future<void> _rejectRequest(_ProductRequest request) async {
@@ -28,8 +29,12 @@ class _PharmacistRequestsPageState extends State<PharmacistRequestsPage> {
         title: const Text('Reject request'),
         content: const Text('Are you sure you want to reject this request?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reject')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Reject')),
         ],
       ),
     );
@@ -134,11 +139,11 @@ class _RequestCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFF1976D2), width: 2),
-        boxShadow:const [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black,
             blurRadius: 8,
-            offset:  Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -166,7 +171,9 @@ class _RequestCard extends StatelessWidget {
             if (request.createdAt != null)
               _DetailLine(
                 label: 'Requested',
-                value: DateFormat.yMMMd().add_jm().format(request.createdAt!.toLocal()),
+                value: DateFormat.yMMMd()
+                    .add_jm()
+                    .format(request.createdAt!.toLocal()),
               ),
             const SizedBox(height: 12),
             Row(
@@ -289,12 +296,14 @@ class _ProductRequest {
     final rawCreatedAt = data['createdAt'];
     if (rawCreatedAt is num) {
       createdAtValue = rawCreatedAt.toInt();
-      createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtValue, isUtc: true);
+      createdAt =
+          DateTime.fromMillisecondsSinceEpoch(createdAtValue, isUtc: true);
     } else if (rawCreatedAt is String) {
       final parsedNumber = int.tryParse(rawCreatedAt);
       if (parsedNumber != null) {
         createdAtValue = parsedNumber;
-        createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtValue, isUtc: true);
+        createdAt =
+            DateTime.fromMillisecondsSinceEpoch(createdAtValue, isUtc: true);
       } else {
         createdAt = DateTime.tryParse(rawCreatedAt);
         createdAtValue = createdAt?.millisecondsSinceEpoch ?? 0;
@@ -335,7 +344,8 @@ class _AddRequestedProductPage extends StatefulWidget {
   final DatabaseReference requestsRef;
 
   @override
-  State<_AddRequestedProductPage> createState() => _AddRequestedProductPageState();
+  State<_AddRequestedProductPage> createState() =>
+      _AddRequestedProductPageState();
 }
 
 class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
@@ -385,9 +395,31 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
       final price = double.parse(_priceController.text.trim());
       final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
       final productId = DateTime.now().millisecondsSinceEpoch.toString();
+      final productName = _nameController.text.trim();
+
+      final productsRef =
+          DatabaseService.instance.ref('products/${widget.pharmacyId}');
+      final snapshot = await productsRef.get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final existingProducts = snapshot.value as Map;
+        for (var entry in existingProducts.entries) {
+          final existingName =
+              entry.value['name']?.toString().trim().toLowerCase();
+          if (existingName == productName.toLowerCase()) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(
+                      'A product with the name "$productName" already exists. Duplicate product names are not allowed.')),
+            );
+            setState(() => _submitting = false);
+            return;
+          }
+        }
+      }
 
       final productData = {
-        'name': _nameController.text.trim(),
+        'name': productName,
         'description': _descriptionController.text.trim(),
         'category': _category,
         'price': price,
@@ -396,12 +428,13 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
         'imageUrl': '',
         'ownerId': widget.pharmacyId,
         'createdAt': ServerValue.timestamp,
+        'status': quantity > 0 ? 'in_stock' : 'out_of_stock',
       };
 
-      await DatabaseService.instance.ref('products/${widget.pharmacyId}/$productId')
+      await DatabaseService.instance
+          .ref('products/${widget.pharmacyId}/$productId')
           .set(productData);
 
-      // remove request after successful creation
       await widget.requestsRef.child(widget.request.id).remove();
 
       if (!mounted) return;
@@ -435,8 +468,9 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Product name'),
-                validator: (value) =>
-                    value == null || value.trim().isEmpty ? 'Enter product name' : null,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter product name'
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -479,7 +513,8 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Description (optional)'),
+                decoration:
+                    const InputDecoration(labelText: 'Description (optional)'),
                 maxLines: 3,
               ),
               const SizedBox(height: 12),
@@ -487,7 +522,8 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Requires prescription'),
                 value: _requiresPrescription,
-                onChanged: (value) => setState(() => _requiresPrescription = value),
+                onChanged: (value) =>
+                    setState(() => _requiresPrescription = value),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -498,7 +534,8 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
                       : const Text('Save product'),
                 ),
