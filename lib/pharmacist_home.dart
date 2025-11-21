@@ -5,11 +5,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
 import 'services/storage_service.dart';
+import 'services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'login.dart';
 import 'profile_page.dart';
 import 'pharmacist_reports_page.dart';
+import 'models/product.dart';
+import 'chatbot_page.dart';
+import 'localization/app_localizations.dart';
+import 'notifications_page.dart';
 
 class PharmacistHome extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -41,6 +46,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
   ];
 
   bool isDarkMode = false;
+  bool _showAIPredictions = true;
 
   @override
   void initState() {
@@ -63,6 +69,327 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         child: Text(text, style: const TextStyle(fontSize: 16)),
       ),
     );
+  }
+
+  Widget _buildAIPredictionsWidget(List<Product> products) {
+    // AI-driven analytics to predict high-demand products
+    final predictedProducts = _getPredictedHighDemandProducts(products);
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3949AB).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.amberAccent,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI-Powered Predictions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'High-demand products forecast',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _showAIPredictions = !_showAIPredictions),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _showAIPredictions 
+                          ? Icons.keyboard_arrow_up 
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_showAIPredictions) ...[
+            Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.1),
+            ),
+            if (predictedProducts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Add products to see AI predictions...',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              )
+            else
+              SizedBox(
+                height: 130,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  itemCount: predictedProducts.length,
+                  itemBuilder: (context, index) {
+                    final prediction = predictedProducts[index];
+                    return Container(
+                      width: 145,
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.trending_up,
+                                    color: prediction['trend'] == 'high' 
+                                        ? Colors.greenAccent 
+                                        : Colors.amberAccent,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${prediction['confidence']}%',
+                                    style: const TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'Qty: ${prediction['quantity']}',
+                                style: TextStyle(
+                                  color: (prediction['quantity'] as int) < 20 
+                                      ? Colors.redAccent 
+                                      : Colors.white70,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Expanded(
+                            child: Text(
+                              prediction['name'] as String,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.amberAccent.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  prediction['demandLevel'] as String,
+                                  style: const TextStyle(
+                                    color: Colors.amberAccent,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () async {
+                                  final productId = prediction['productId'] as String;
+                                  final snapshot = await dbRef.child(productId).get();
+                                  if (snapshot.exists && snapshot.value is Map) {
+                                    final productData = Map<String, dynamic>.from(snapshot.value as Map);
+                                    productData['key'] = productId;
+                                    showBatchesDialog(productData);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.greenAccent,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.add,
+                                        color: Color(0xFF1A237E),
+                                        size: 12,
+                                      ),
+                                      SizedBox(width: 2),
+                                      Text(
+                                        'Stock',
+                                        style: TextStyle(
+                                          color: Color(0xFF1A237E),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _getPredictedHighDemandProducts(List<Product> products) {
+    if (products.isEmpty) return [];
+    
+    // AI-driven demand prediction algorithm
+    // Factors: price competitiveness, category trends, stock levels
+    final List<Map<String, dynamic>> predictions = [];
+    
+    // Calculate average price per category for analysis
+    final categoryPrices = <String, List<double>>{};
+    for (final p in products) {
+      categoryPrices.putIfAbsent(p.category, () => []).add(p.price);
+    }
+    
+    final categoryAvg = categoryPrices.map((cat, prices) {
+      final avg = prices.reduce((a, b) => a + b) / prices.length;
+      return MapEntry(cat, avg);
+    });
+    
+    // Analyze each product for demand prediction
+    for (final product in products) {
+      final avgPrice = categoryAvg[product.category] ?? product.price;
+      
+      // Demand score calculation (simplified AI model)
+      double demandScore = 50.0;
+      
+      // Price competitiveness factor
+      if (product.price < avgPrice) {
+        demandScore += (avgPrice - product.price) / avgPrice * 30;
+      }
+      
+      // Stock scarcity factor (lower stock = higher predicted demand)
+      if (product.totalQuantity < 20) {
+        demandScore += 15;
+      } else if (product.totalQuantity < 50) {
+        demandScore += 8;
+      }
+      
+      // Category popularity boost
+      final categoryPopularity = {
+        'Medicines': 15,
+        'Vitamins and supplements': 12,
+        'First aid': 10,
+        'Baby and family care': 10,
+        'Personal care': 8,
+        'Skin and beauty care': 7,
+        'Fitness & diet': 6,
+      };
+      demandScore += categoryPopularity[product.category] ?? 5;
+      
+      // Normalize score
+      demandScore = demandScore.clamp(0, 100);
+      
+      if (demandScore > 60) {
+        predictions.add({
+          'name': product.name,
+          'productId': product.id,
+          'quantity': product.totalQuantity,
+          'confidence': demandScore.round(),
+          'trend': demandScore > 80 ? 'high' : 'medium',
+          'demandLevel': demandScore > 80 
+              ? 'Very High' 
+              : demandScore > 70 
+                  ? 'High' 
+                  : 'Moderate',
+        });
+      }
+    }
+    
+    // Sort by confidence and return top predictions
+    predictions.sort((a, b) => (b['confidence'] as int).compareTo(a['confidence'] as int));
+    return predictions.take(5).toList();
   }
 
   Future<void> addProduct(
@@ -348,24 +675,74 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     return trimmed.startsWith('assets/') ? trimmed : 'assets/$trimmed';
   }
 
-  Future<void> deleteProduct(String key) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Confirm Delete"),
-        content: const Text("Are you sure you want to delete this product?"),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancel")),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text("Delete")),
-        ],
-      ),
-    );
-    if (confirm == true) {
+  Future<void> deleteProduct(String key, {String? reason, bool skipConfirm = false}) async {
+    // Get product data before deletion
+    final productSnapshot = await dbRef.child(key).get();
+    if (!productSnapshot.exists || productSnapshot.value is! Map) {
+      return;
+    }
+    
+    final productData = Map<String, dynamic>.from(productSnapshot.value as Map);
+    final productName = productData['name']?.toString() ?? 'Product';
+    
+    bool shouldDelete = true;
+    
+    // Ask for confirmation only if not auto-delete
+    if (!skipConfirm) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Confirm Delete"),
+          content: const Text("Are you sure you want to delete this product?"),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel")),
+            TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Delete")),
+          ],
+        ),
+      );
+      shouldDelete = confirm == true;
+    }
+    
+    if (shouldDelete) {
+      // Save deleted product info
+      final deletedProductInfo = {
+        'productId': key,
+        'productName': productName,
+        'category': productData['category']?.toString() ?? '',
+        'price': productData['price'],
+        'imageUrl': productData['imageUrl']?.toString() ?? '',
+        'deletedAt': DateTime.now().toIso8601String(),
+        'reason': reason ?? 'manual',
+        'batches': productData['batches'],
+      };
+      
+      // Save to deleted products
+      await DatabaseService.instance
+          .ref('deleted_products/${user!.uid}')
+          .push()
+          .set(deletedProductInfo);
+      
+      // Delete the product
       await dbRef.child(key).remove();
+      
+      // Send notification if auto-deleted
+      if (skipConfirm && reason == 'expired') {
+        await NotificationService.notifyPharmacist(
+          pharmacistId: user!.uid,
+          title: 'Product deleted automatically',
+          body: 'Product "$productName" was automatically deleted because all batches expired.',
+          type: 'product_deleted',
+          data: {
+            'productId': key,
+            'productName': productName,
+            'reason': 'expired',
+          },
+        );
+      }
     }
   }
 
@@ -377,6 +754,159 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     Map<String, dynamic> batches = {};
     if (product['batches'] != null && product['batches'] is Map) {
       batches = Map<String, dynamic>.from(product['batches'] as Map);
+    }
+
+    // Filter out expired batches and delete them from database
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final List<String> expiredBatchIds = [];
+    
+    batches.removeWhere((batchId, batchData) {
+      if (batchData is Map) {
+        final expiryDateStr = batchData['expiryDate']?.toString();
+        if (expiryDateStr != null) {
+          final expiryDate = DateTime.tryParse(expiryDateStr);
+          if (expiryDate != null) {
+            final expiryOnly = DateTime(
+              expiryDate.year,
+              expiryDate.month,
+              expiryDate.day,
+            );
+            // Mark as expired if expiry date is today or before
+            if (expiryOnly.isBefore(todayOnly) || expiryOnly.isAtSameMomentAs(todayOnly)) {
+              expiredBatchIds.add(batchId);
+              return true; // Remove from batches map
+            }
+          }
+        }
+      }
+      return false; // Keep non-expired batches
+    });
+
+    // Delete expired batches from database and save deleted products
+    if (expiredBatchIds.isNotEmpty) {
+      try {
+        // Get current batches from database
+        final snapshot = await dbRef.child(productKey).get();
+        if (snapshot.exists && snapshot.value is Map) {
+          final productData = Map<String, dynamic>.from(snapshot.value as Map);
+          final dbBatches = productData['batches'] != null && productData['batches'] is Map
+              ? Map<String, dynamic>.from(productData['batches'] as Map)
+              : <String, dynamic>{};
+          
+          // Save deleted batches info before removing
+          final deletedBatchesInfo = <Map<String, dynamic>>[];
+          for (final batchId in expiredBatchIds) {
+            final batchData = dbBatches[batchId];
+            if (batchData is Map) {
+              deletedBatchesInfo.add({
+                'batchId': batchId,
+                'quantity': batchData['quantity'],
+                'expiryDate': batchData['expiryDate'],
+              });
+            }
+            dbBatches.remove(batchId);
+          }
+          
+          // Calculate new total quantity
+          int totalQuantity = 0;
+          dbBatches.values.forEach((batch) {
+            if (batch is Map && batch['quantity'] != null) {
+              final qty = batch['quantity'] is num
+                  ? (batch['quantity'] as num).toInt()
+                  : int.tryParse(batch['quantity'].toString()) ?? 0;
+              totalQuantity += qty;
+            }
+          });
+          
+          // If no batches left, delete the entire product
+          bool productDeleted = false;
+          if (dbBatches.isEmpty) {
+            // Save product info before deletion
+            final deletedProductInfo = {
+              'productId': productKey,
+              'productName': productName,
+              'category': productData['category']?.toString() ?? '',
+              'price': productData['price'],
+              'imageUrl': productData['imageUrl']?.toString() ?? '',
+              'deletedAt': DateTime.now().toIso8601String(),
+              'reason': 'expired',
+              'deletedBatches': deletedBatchesInfo,
+            };
+            
+            // Save to deleted products
+            await DatabaseService.instance
+                .ref('deleted_products/${user!.uid}')
+                .push()
+                .set(deletedProductInfo);
+            
+            // Delete the product
+            await dbRef.child(productKey).remove();
+            productDeleted = true;
+            
+            // Send notification
+            await NotificationService.notifyPharmacist(
+              pharmacistId: user!.uid,
+              title: 'Product deleted automatically',
+              body: 'Product "$productName" was automatically deleted because all batches expired.',
+              type: 'product_deleted',
+              data: {
+                'productId': productKey,
+                'productName': productName,
+                'reason': 'expired',
+              },
+            );
+          } else {
+            // Update product with cleaned batches
+            await dbRef.child(productKey).update({
+              'batches': dbBatches,
+              'quantity': totalQuantity,
+              'status': totalQuantity > 0 ? 'in_stock' : 'out_of_stock',
+            });
+            
+            // Save deleted batches info
+            if (deletedBatchesInfo.isNotEmpty) {
+              final deletedBatchesRecord = {
+                'productId': productKey,
+                'productName': productName,
+                'deletedAt': DateTime.now().toIso8601String(),
+                'reason': 'expired_batches',
+                'deletedBatches': deletedBatchesInfo,
+              };
+              
+              await DatabaseService.instance
+                  .ref('deleted_products/${user!.uid}')
+                  .push()
+                  .set(deletedBatchesRecord);
+              
+              // Send notification about deleted batches
+              await NotificationService.notifyPharmacist(
+                pharmacistId: user!.uid,
+                title: 'Expired batches deleted',
+                body: '${expiredBatchIds.length} expired batch(es) from "$productName" were automatically deleted.',
+                type: 'batches_deleted',
+                data: {
+                  'productId': productKey,
+                  'productName': productName,
+                  'deletedCount': expiredBatchIds.length,
+                },
+              );
+            }
+          }
+          
+          if (productDeleted && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Product "$productName" was deleted because all batches expired.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return; // Don't show dialog if product was deleted
+          }
+        }
+      } catch (e) {
+        debugPrint('Error deleting expired batches: $e');
+      }
     }
 
     await showDialog(
@@ -1203,6 +1733,84 @@ class _PharmacistHomeState extends State<PharmacistHome> {
           style: TextStyle(color: Colors.white),
         ),
         actions: [
+          // Notifications Icon
+          StreamBuilder<DatabaseEvent>(
+            stream: user != null
+                ? DatabaseService.instance
+                    .pharmacyNotificationsRef(user!.uid)
+                    .onValue
+                : const Stream.empty(),
+            builder: (context, snapshot) {
+              int unreadCount = 0;
+              if (snapshot.hasData && snapshot.data?.snapshot.value is Map) {
+                final data = snapshot.data!.snapshot.value as Map;
+                unreadCount = data.values
+                    .where((n) => n is Map && (n['read'] != true))
+                    .length;
+              }
+              
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: AppLocalizations.of(context)!.isArabic 
+                        ? 'الإشعارات' 
+                        : 'Notifications',
+                    icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                    onPressed: () {
+                      final currentUser = FirebaseAuth.instance.currentUser;
+                      if (currentUser != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NotificationsPage(
+                              userId: currentUser.uid,
+                              isPharmacist: true,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          IconButton(
+            tooltip: AppLocalizations.of(context)!.chatbotTitle,
+            icon: const Icon(Icons.smart_toy, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ChatBotPage(isPharmacist: true)),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -1274,6 +1882,29 @@ class _PharmacistHomeState extends State<PharmacistHome> {
             ),
           ),
           const SizedBox(height: 10),
+          // AI Predictions Widget
+          StreamBuilder(
+            stream: dbRef.onValue,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                Map data = (snapshot.data!.snapshot.value as Map);
+                List<Product> productList = [];
+                data.forEach((key, value) {
+                  if (value is Map) {
+                    final map = Map<dynamic, dynamic>.from(value);
+                    final ownerId = map['ownerId']?.toString() ?? user!.uid;
+                    productList.add(Product.fromMap(
+                      id: key.toString(),
+                      ownerId: ownerId,
+                      data: map,
+                    ));
+                  }
+                });
+                return _buildAIPredictionsWidget(productList);
+              }
+              return _buildAIPredictionsWidget([]);
+            },
+          ),
           Expanded(
             child: StreamBuilder(
               stream: dbRef.onValue,
@@ -1286,16 +1917,70 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                     products.add(value);
                   });
 
+                  final today = DateTime.now();
+                  final todayOnly = DateTime(today.year, today.month, today.day);
+                  
                   products = products
-                      .where((p) =>
-                          p['name']
-                              .toString()
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()) ||
-                          p['category']
-                              .toString()
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()))
+                      .where((p) {
+                        // Filter by search query
+                        final matchQuery = searchQuery.isEmpty ||
+                            p['name']
+                                .toString()
+                                .toLowerCase()
+                                .contains(searchQuery.toLowerCase()) ||
+                            p['category']
+                                .toString()
+                                .toLowerCase()
+                                .contains(searchQuery.toLowerCase());
+                        
+                        // Filter out expired products by default
+                        bool isExpired = false;
+                        
+                        // Check batches first
+                        if (p['batches'] != null && p['batches'] is Map) {
+                          final batches = p['batches'] as Map;
+                          if (batches.isNotEmpty) {
+                            // Check if all batches are expired
+                            bool allBatchesExpired = true;
+                            batches.forEach((key, value) {
+                              if (value is Map) {
+                                final batchExpiryStr = value['expiryDate']?.toString();
+                                if (batchExpiryStr != null) {
+                                  final batchExpiry = DateTime.tryParse(batchExpiryStr);
+                                  if (batchExpiry != null) {
+                                    final batchExpiryOnly = DateTime(
+                                      batchExpiry.year, 
+                                      batchExpiry.month, 
+                                      batchExpiry.day
+                                    );
+                                    if (batchExpiryOnly.isAfter(todayOnly)) {
+                                      allBatchesExpired = false;
+                                    }
+                                  }
+                                }
+                              }
+                            });
+                            isExpired = allBatchesExpired;
+                          }
+                        } else if (p['expiryDate'] != null) {
+                          // Legacy: check single expiryDate
+                          final expiryDateStr = p['expiryDate']?.toString();
+                          if (expiryDateStr != null) {
+                            final expiryDate = DateTime.tryParse(expiryDateStr);
+                            if (expiryDate != null) {
+                              final expiryOnly = DateTime(
+                                expiryDate.year, 
+                                expiryDate.month, 
+                                expiryDate.day
+                              );
+                              isExpired = expiryOnly.isBefore(todayOnly) || 
+                                         expiryOnly.isAtSameMomentAs(todayOnly);
+                            }
+                          }
+                        }
+                        
+                        return matchQuery && !isExpired;
+                      })
                       .toList();
 
                   return ListView.builder(

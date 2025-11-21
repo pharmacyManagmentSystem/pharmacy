@@ -22,6 +22,7 @@ class _PaymentPageState extends State<PaymentPage> {
   final TextEditingController _card = TextEditingController();
   final TextEditingController _cvv = TextEditingController();
   bool _loading = false;
+  bool _obscureCvv = true;
 
   @override
   void initState() {
@@ -212,9 +213,21 @@ class _PaymentPageState extends State<PaymentPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _cvv,
-              decoration: const InputDecoration(labelText: 'CVV'),
+              decoration: InputDecoration(
+                labelText: 'CVV',
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscureCvv ? Icons.visibility : Icons.visibility_off,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscureCvv = !_obscureCvv;
+                    });
+                  },
+                ),
+              ),
               keyboardType: TextInputType.number,
-              obscureText: true,
+              obscureText: _obscureCvv,
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(

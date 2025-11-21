@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 import 'package:intl/intl.dart';
 
 class PharmacyOrdersPage extends StatefulWidget {
@@ -128,14 +129,47 @@ class _PharmacyOrdersPageState extends State<PharmacyOrdersPage> {
 
   Future<void> updateAcceptStatus(String orderId, String status) async {
     try {
-      await DatabaseService.instance
+      // Get order data first to get customer ID
+      final orderSnapshot = await DatabaseService.instance
           .ref('orders/$orderId')
-          .update({'acceptStatus': status});
-      int index = orders.indexWhere((o) => o['orderId'] == orderId);
-      if (index != -1) {
-        orders[index]['acceptStatus'] = status;
+          .get();
+      
+      if (orderSnapshot.exists && orderSnapshot.value is Map) {
+        final orderData = orderSnapshot.value as Map;
+        final customerId = orderData['customerId']?.toString();
+        final total = orderData['total']?.toString() ?? '0';
+        
+        await DatabaseService.instance
+            .ref('orders/$orderId')
+            .update({'acceptStatus': status});
+        
+        int index = orders.indexWhere((o) => o['orderId'] == orderId);
+        if (index != -1) {
+          orders[index]['acceptStatus'] = status;
+        }
+        applyFilters();
+        
+        // Send notification to customer
+        if (customerId != null && customerId.isNotEmpty) {
+          if (status == 'accepted') {
+            await NotificationService.notifyCustomer(
+              customerId: customerId,
+              title: 'Order accepted',
+              body: 'Your order #$orderId has been accepted by the pharmacy. Total: $total OMR',
+              type: 'order_accepted',
+              data: {'orderId': orderId},
+            );
+          } else if (status == 'rejected') {
+            await NotificationService.notifyCustomer(
+              customerId: customerId,
+              title: 'Order rejected',
+              body: 'Your order #$orderId has been rejected by the pharmacy.',
+              type: 'order_rejected',
+              data: {'orderId': orderId},
+            );
+          }
+        }
       }
-      applyFilters();
     } catch (e) {
       debugPrint('Error updating acceptStatus: $e');
     }

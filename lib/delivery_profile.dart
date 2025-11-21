@@ -79,101 +79,142 @@ class _DeliveryPersonProfilePageState extends State<DeliveryPersonProfilePage> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Change Password'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldPasswordController,
-                  decoration: const InputDecoration(labelText: 'Old Password'),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 8),
+        bool obscureOldPassword = true;
+        bool obscureNewPassword = true;
+        bool obscureConfirmPassword = true;
+        
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Change Password'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: oldPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Old Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureOldPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureOldPassword = !obscureOldPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureOldPassword,
+                    ),
+                    const SizedBox(height: 8),
 
-                TextField(
-                  controller: newPasswordController,
-                  decoration: const InputDecoration(labelText: 'New Password'),
-                  obscureText: true,
+                    TextField(
+                      controller: newPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureNewPassword = !obscureNewPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureNewPassword,
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: confirmPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Repeat New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureConfirmPassword = !obscureConfirmPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureConfirmPassword,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: confirmPasswordController,
-                  decoration:
-                      const InputDecoration(labelText: 'Repeat New Password'),
-                  obscureText: true,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final oldPassword = oldPasswordController.text.trim();
+                    final newPassword = newPasswordController.text.trim();
+                    final confirmPassword = confirmPasswordController.text.trim();
+
+                    if (newPassword != confirmPassword) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('New passwords do not match ')),
+                      );
+                      return;
+                    }
+
+                    final passwordRegex =
+                        RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
+                    if (!passwordRegex.hasMatch(newPassword)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Password must be at least 6 characters and include upper, lower, number, and symbol.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    try {
+                      final credential = EmailAuthProvider.credential(
+                        email: user.email!,
+                        password: oldPassword,
+                      );
+                      await user.reauthenticateWithCredential(credential);
+
+                      await user.updatePassword(newPassword);
+
+                      await DatabaseService.instance
+                          .ref('pharmacy/delivery_persons/${user.uid}')
+                          .update({'password': newPassword});
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Password changed successfully')),
+                      );
+                      Navigator.pop(context);
+                    } on FirebaseAuthException catch (e) {
+                      String message = 'Failed to change password.';
+                      if (e.code == 'wrong-password') {
+                        message = 'Old password is incorrect.';
+                      }
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(SnackBar(content: Text(message)));
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                    }
+                  },
+                  child: const Text('Change Password'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final oldPassword = oldPasswordController.text.trim();
-                final newPassword = newPasswordController.text.trim();
-                final confirmPassword = confirmPasswordController.text.trim();
-
-                if (newPassword != confirmPassword) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('New passwords do not match ')),
-                  );
-                  return;
-                }
-
-                final passwordRegex =
-                    RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
-                if (!passwordRegex.hasMatch(newPassword)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Password must be at least 6 characters and include upper, lower, number, and symbol.'),
-                    ),
-                  );
-                  return;
-                }
-
-                try {
-                  final credential = EmailAuthProvider.credential(
-                    email: user.email!,
-                    password: oldPassword,
-                  );
-                  await user.reauthenticateWithCredential(credential);
-
-                  await user.updatePassword(newPassword);
-
-                  await DatabaseService.instance
-                      .ref('pharmacy/delivery_persons/${user.uid}')
-                      .update({'password': newPassword});
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Password changed successfully')),
-                  );
-                  Navigator.pop(context);
-                } on FirebaseAuthException catch (e) {
-                  String message = 'Failed to change password.';
-                  if (e.code == 'wrong-password') {
-                    message = 'Old password is incorrect.';
-                  }
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text(message)));
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
-                  );
-                }
-              },
-              child: const Text('Change Password'),
-
-            ),
-
-          ],
+            );
+          },
         );
       },
     );

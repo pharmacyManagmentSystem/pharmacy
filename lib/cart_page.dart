@@ -4,20 +4,129 @@ import 'package:provider/provider.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'state/customer_app_state.dart';
 import 'services/database_service.dart';
+import 'services/product_recommendations_service.dart';
+import 'models/product.dart';
+import 'product_detail_page.dart';
 import 'location_capture_page.dart';
+import 'localization/app_localizations.dart';
 
-class CustomerCartPage extends StatelessWidget {
+class CustomerCartPage extends StatefulWidget {
   const CustomerCartPage({super.key});
+
+  @override
+  State<CustomerCartPage> createState() => _CustomerCartPageState();
+}
+
+class _CustomerCartPageState extends State<CustomerCartPage> {
+  List<Product> _recommendations = [];
+  bool _loadingRecommendations = false;
+  String? _lastCartHash; // Track cart state to avoid reloading unnecessarily
+
+  String _getCartHash(List<Product> cartProducts) {
+    if (cartProducts.isEmpty) return 'empty';
+    return cartProducts.map((p) => p.id).join(',');
+  }
+
+  Future<void> _loadRecommendations(List<Product> cartProducts) async {
+    if (cartProducts.isEmpty) {
+      setState(() {
+        _recommendations = [];
+        _loadingRecommendations = false;
+        _lastCartHash = 'empty';
+      });
+      return;
+    }
+
+    // Check if cart hasn't changed
+    final currentHash = _getCartHash(cartProducts);
+    if (_lastCartHash == currentHash && _recommendations.isNotEmpty) {
+      return; // Don't reload if cart hasn't changed
+    }
+
+    setState(() {
+      _loadingRecommendations = true;
+      _lastCartHash = currentHash;
+    });
+
+    // Get recommendations based on the last added product or most recent product
+    final lastProduct = cartProducts.last;
+    final recommendations = await ProductRecommendationsService.getRecommendations(
+      addedProduct: lastProduct,
+      maxRecommendations: 3,
+    );
+
+    // Filter out products already in cart
+    final cartProductIds = cartProducts.map((p) => p.id).toSet();
+    final filteredRecommendations = recommendations
+        .where((p) => !cartProductIds.contains(p.id))
+        .take(3)
+        .toList();
+
+    if (mounted) {
+      setState(() {
+        _recommendations = filteredRecommendations;
+        _loadingRecommendations = false;
+      });
+    }
+  }
+
+  Widget _buildProductImage(String path) {
+    if (path.startsWith('data:')) {
+      try {
+        final parts = path.split(',');
+        final base64Data = parts.length > 1 ? parts[1] : '';
+        final bytes = base64Decode(base64Data);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (_) {
+        return const Icon(Icons.broken_image, size: 60);
+      }
+    }
+
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60),
+      );
+    } else if (path.contains('assets/') ||
+        path.endsWith('.jpg') ||
+        path.endsWith('.png') ||
+        path.endsWith('.jpeg')) {
+      final fixedPath = path.startsWith('assets/') ? path : 'assets/$path';
+      return Image.asset(
+        fixedPath,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.image_not_supported, size: 60),
+      );
+    } else {
+      return const Icon(Icons.image_not_supported, size: 60);
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
     return Consumer<CustomerAppState>(
       builder: (context, state, _) {
         final items = state.cartItems;
         final hasItems = items.isNotEmpty;
         final pharmacyId = state.currentPharmacyId ?? '';
         final pharmacyName = state.currentPharmacyName ?? '';
+        final cartProducts = items.map((item) => item.product).toList();
+
+        // Load recommendations when cart changes (only if cart actually changed)
+        final currentHash = _getCartHash(cartProducts);
+        if (_lastCartHash != currentHash) {
+          // Use a small delay to avoid rapid reloading
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted && _getCartHash(cartProducts) == currentHash) {
+              _loadRecommendations(cartProducts);
+            }
+          });
+        }
 
         return Scaffold(
           backgroundColor: isDarkMode ? Colors.grey[900] : null,
@@ -28,8 +137,17 @@ class CustomerCartPage extends StatelessWidget {
                   child: hasItems
                       ? ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          itemCount: items.length,
+                          itemCount: items.length + (_recommendations.isNotEmpty ? 1 : 0),
                           itemBuilder: (context, index) {
+                            // Show recommendations section after cart items
+                            if (index == items.length) {
+                              return _buildRecommendationsSection(
+                                context,
+                                loc,
+                                state,
+                                pharmacyName,
+                              );
+                            }
                             final item = items[index];
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -50,35 +168,7 @@ class CustomerCartPage extends StatelessWidget {
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(12),
                                         child: item.product.imageUrl.isNotEmpty
-                                            ? (item.product.imageUrl
-                                                    .startsWith('data:')
-                                                ? Builder(builder: (context) {
-                                                    try {
-                                                      final parts = item
-                                                          .product.imageUrl
-                                                          .split(',');
-                                                      final base64Data =
-                                                          parts.length > 1
-                                                              ? parts[1]
-                                                              : '';
-                                                      final bytes =
-                                                          base64Decode(
-                                                              base64Data);
-                                                      return Image.memory(bytes,
-                                                          fit: BoxFit.cover);
-                                                    } catch (_) {
-                                                      return const Icon(
-                                                          Icons.broken_image);
-                                                    }
-                                                  })
-                                                : Image.network(
-                                                    item.product.imageUrl,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder: (_, __,
-                                                            ___) =>
-                                                        const Icon(
-                                                            Icons.broken_image),
-                                                  ))
+                                            ? _buildProductImage(item.product.imageUrl)
                                             : const Center(
                                                 child: Icon(
                                                     Icons.medication_outlined)),
@@ -108,9 +198,9 @@ class CustomerCartPage extends StatelessWidget {
                                             ),
                                           ),
                                           if (item.prescriptionUrl != null)
-                                            const Text(
-                                              'Prescription attached',
-                                              style: TextStyle(
+                                            Text(
+                                              loc.prescriptionAttached,
+                                              style: const TextStyle(
                                                 color: Colors.green,
                                                 fontSize: 12,
                                               ),
@@ -142,8 +232,8 @@ class CustomerCartPage extends StatelessWidget {
                                                 }
                                                 return Text(
                                                   isApproved
-                                                      ? 'Approved by pharmacist'
-                                                      : 'Pending pharmacist approval',
+                                                      ? loc.approved
+                                                      : loc.pendingApproval,
                                                   style: TextStyle(
                                                     color: isApproved
                                                         ? Colors.green
@@ -213,7 +303,7 @@ class CustomerCartPage extends StatelessWidget {
                                                       .showSnackBar(
                                                     SnackBar(
                                                       content: Text(
-                                                          'Insufficient stock. Available: ${item.product.totalQuantity}'),
+                                                          '${loc.insufficientStock}. ${loc.availableStock(item.product.totalQuantity)}'),
                                                       backgroundColor:
                                                           Colors.red,
                                                     ),
@@ -239,9 +329,9 @@ class CustomerCartPage extends StatelessWidget {
                                           child: GestureDetector(
                                             onTap: () => state
                                                 .removeItem(item.product.id),
-                                            child: const Text(
-                                              'Remove',
-                                              style: TextStyle(
+                                            child: Text(
+                                              loc.remove,
+                                              style: const TextStyle(
                                                 color: Colors.red,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.bold,
@@ -257,28 +347,28 @@ class CustomerCartPage extends StatelessWidget {
                             );
                           },
                         )
-                      : const Center(
+                      : Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.shopping_cart_outlined,
                                 size: 64,
                                 color: Colors.grey,
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               Text(
-                                'Your cart is empty',
-                                style: TextStyle(
+                                loc.emptyCart,
+                                style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.grey,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text(
-                                'Start adding medicines to continue',
-                                style: TextStyle(
+                                loc.addItemsToCart,
+                                style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey,
                                 ),
@@ -308,7 +398,7 @@ class CustomerCartPage extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Total',
+                            loc.total,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 20,
@@ -341,14 +431,16 @@ class CustomerCartPage extends StatelessWidget {
                                     showDialog(
                                       context: context,
                                       builder: (_) => AlertDialog(
-                                        title: const Text('Pending Approval'),
-                                        content: const Text(
-                                            'Some items in your cart require pharmacist approval. Please wait for approval before proceeding to checkout.'),
+                                        title: Text(loc.pendingApproval),
+                                        content: Text(
+                                            loc.isArabic 
+                                              ? 'بعض العناصر في سلتك تحتاج موافقة الصيدلي. يرجى الانتظار قبل المتابعة.'
+                                              : 'Some items in your cart require pharmacist approval. Please wait for approval before proceeding to checkout.'),
                                         actions: [
                                           TextButton(
                                               onPressed: () =>
                                                   Navigator.pop(context),
-                                              child: const Text('OK')),
+                                              child: Text(loc.ok)),
                                         ],
                                       ),
                                     );
@@ -376,9 +468,9 @@ class CustomerCartPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            'Checkout',
-                            style: TextStyle(
+                          child: Text(
+                            loc.checkout,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
@@ -394,6 +486,155 @@ class CustomerCartPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildRecommendationsSection(
+    BuildContext context,
+    AppLocalizations loc,
+    CustomerAppState state,
+    String pharmacyName,
+  ) {
+    if (_loadingRecommendations) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_recommendations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      key: const ValueKey('recommendations_section'),
+      margin: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Divider(thickness: 1, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              loc.isArabic ? 'قد يعجبك أيضاً' : 'You might also like',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              itemCount: _recommendations.length,
+              shrinkWrap: true,
+              physics: const BouncingScrollPhysics(),
+            itemBuilder: (context, index) {
+              final recommendedProduct = _recommendations[index];
+              return Container(
+                width: 160,
+                margin: const EdgeInsets.only(right: 12),
+                child: Card(
+                  elevation: 2,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetailPage(
+                            product: recommendedProduct,
+                            pharmacyName: pharmacyName,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(8),
+                            ),
+                            child: _buildProductImage(recommendedProduct.imageUrl),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                recommendedProduct.name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${recommendedProduct.price.toStringAsFixed(2)} OMR',
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final added = await state.addProductToCart(
+                                      recommendedProduct,
+                                      pharmacyName: pharmacyName,
+                                    );
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            added
+                                                ? (loc.isArabic
+                                                    ? 'تمت الإضافة'
+                                                    : 'Added to cart')
+                                                : (loc.isArabic
+                                                    ? 'فشلت الإضافة'
+                                                    : 'Failed to add'),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  icon: const Icon(Icons.add_shopping_cart, size: 16),
+                                  label: Text(
+                                    loc.isArabic ? 'أضف' : 'Add',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 }

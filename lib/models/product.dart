@@ -40,6 +40,60 @@ class Product {
     return quantity ?? 0;
   }
 
+  // Check if product has any non-expired batches
+  bool get hasNonExpiredBatches {
+    final now = DateTime.now();
+    if (batches != null && batches!.isNotEmpty) {
+      // Check if at least one batch is not expired
+      return batches!.any((batch) => batch.expiryDate.isAfter(now));
+    }
+    // Legacy: check expiryDate if batches don't exist
+    if (expiryDate != null) {
+      return expiryDate!.isAfter(now);
+    }
+    // If no expiry date, consider it as non-expired
+    return true;
+  }
+
+  // Get the earliest expiry date from batches
+  DateTime? get earliestExpiryDate {
+    if (batches != null && batches!.isNotEmpty) {
+      final nonExpiredBatches = batches!
+          .where((batch) => batch.expiryDate.isAfter(DateTime.now()))
+          .toList();
+      if (nonExpiredBatches.isNotEmpty) {
+        nonExpiredBatches.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
+        return nonExpiredBatches.first.expiryDate;
+      }
+    }
+    // Legacy: use expiryDate if batches don't exist
+    if (expiryDate != null && expiryDate!.isAfter(DateTime.now())) {
+      return expiryDate;
+    }
+    return null;
+  }
+
+  // Check if product is expiring soon (within 30 days)
+  bool get isExpiringSoon {
+    const daysThreshold = 30;
+    final earliestExpiry = earliestExpiryDate;
+    if (earliestExpiry == null) return false;
+    
+    final now = DateTime.now();
+    final daysUntilExpiry = earliestExpiry.difference(now).inDays;
+    return daysUntilExpiry >= 0 && daysUntilExpiry <= daysThreshold;
+  }
+
+  // Get days until expiry (for sorting)
+  int get daysUntilExpiry {
+    final earliestExpiry = earliestExpiryDate;
+    if (earliestExpiry == null) return 999999; // No expiry = show last
+    
+    final now = DateTime.now();
+    final days = earliestExpiry.difference(now).inDays;
+    return days < 0 ? 999999 : days; // Expired = show last
+  }
+
   factory Product.fromMap({
     required String id,
     required String ownerId,
@@ -87,11 +141,39 @@ class Product {
 
   Map<String, dynamic> toCartJson(
       {int quantity = 1, String? prescriptionUrl, String? batchId}) {
-    // Get expiry date from the first batch (earliest expiry) or use legacy expiryDate
+    // If batchId is not provided, automatically select the batch with earliest expiry (FIFO)
+    String? selectedBatchId = batchId;
     DateTime? expiryDateToUse;
+    
     if (batches != null && batches!.isNotEmpty) {
-      expiryDateToUse = batches!.first.expiryDate;
+      // Filter out expired batches
+      final nonExpiredBatches = batches!
+          .where((batch) => batch.expiryDate.isAfter(DateTime.now()))
+          .toList();
+      
+      if (nonExpiredBatches.isNotEmpty) {
+        // Sort by expiry date (earliest first) - FIFO
+        nonExpiredBatches.sort((a, b) => a.expiryDate.compareTo(b.expiryDate));
+        
+        // If no batchId provided, use the earliest expiring batch
+        if (selectedBatchId == null) {
+          selectedBatchId = nonExpiredBatches.first.id;
+        }
+        
+        // Find the selected batch or use the earliest one
+        final selectedBatch = nonExpiredBatches.firstWhere(
+          (batch) => batch.id == selectedBatchId,
+          orElse: () => nonExpiredBatches.first,
+        );
+        
+        expiryDateToUse = selectedBatch.expiryDate;
+        selectedBatchId = selectedBatch.id;
+      } else {
+        // All batches expired - use legacy expiryDate if available
+        expiryDateToUse = expiryDate;
+      }
     } else {
+      // Legacy: use expiryDate if batches don't exist
       expiryDateToUse = expiryDate;
     }
 
@@ -106,7 +188,7 @@ class Product {
       'requiresPrescription': requiresPrescription,
       'prescriptionUrl': prescriptionUrl,
       'expiryDate': expiryDateToUse?.toIso8601String(),
-      'batchId': batchId,
+      'batchId': selectedBatchId,
     };
   }
 

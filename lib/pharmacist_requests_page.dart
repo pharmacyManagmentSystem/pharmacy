@@ -1,5 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -42,7 +43,42 @@ class _PharmacistRequestsPageState extends State<PharmacistRequestsPage> {
     if (confirm != true) return;
 
     try {
+      // Get customer ID from request
+      final customerEmail = request.customerEmail;
+      String? customerId;
+      
+      // Find customer by email
+      if (customerEmail.isNotEmpty) {
+        final customersRef = DatabaseService.instance.customersRef();
+        final customersSnapshot = await customersRef.get();
+        if (customersSnapshot.exists && customersSnapshot.value is Map) {
+          final customers = customersSnapshot.value as Map;
+          for (var entry in customers.entries) {
+            if (entry.value is Map) {
+              final customerData = entry.value as Map;
+              if (customerData['email']?.toString().toLowerCase() == 
+                  customerEmail.toLowerCase()) {
+                customerId = entry.key.toString();
+                break;
+              }
+            }
+          }
+        }
+      }
+      
       await _requestsRef.child(request.id).remove();
+      
+      // Send notification to customer
+      if (customerId != null && customerId.isNotEmpty) {
+        await NotificationService.notifyCustomer(
+          customerId: customerId,
+          title: 'Product request rejected',
+          body: 'Your request for "${request.productName}" has been rejected by the pharmacy.',
+          type: 'request_rejected',
+          data: {'requestId': request.id, 'productName': request.productName},
+        );
+      }
+      
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Request rejected.')),
@@ -436,6 +472,38 @@ class _AddRequestedProductPageState extends State<_AddRequestedProductPage> {
           .set(productData);
 
       await widget.requestsRef.child(widget.request.id).remove();
+
+      // Send notification to customer that their requested product was added
+      final customerEmail = widget.request.customerEmail;
+      String? customerId;
+      
+      if (customerEmail.isNotEmpty) {
+        final customersRef = DatabaseService.instance.customersRef();
+        final customersSnapshot = await customersRef.get();
+        if (customersSnapshot.exists && customersSnapshot.value is Map) {
+          final customers = customersSnapshot.value as Map;
+          for (var entry in customers.entries) {
+            if (entry.value is Map) {
+              final customerData = entry.value as Map;
+              if (customerData['email']?.toString().toLowerCase() == 
+                  customerEmail.toLowerCase()) {
+                customerId = entry.key.toString();
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (customerId != null && customerId.isNotEmpty) {
+        await NotificationService.notifyCustomer(
+          customerId: customerId,
+          title: 'Product request approved',
+          body: 'Great news! Your requested product "${productName}" has been added to the pharmacy. You can now purchase it.',
+          type: 'request_approved',
+          data: {'requestId': widget.request.id, 'productId': productId, 'productName': productName},
+        );
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

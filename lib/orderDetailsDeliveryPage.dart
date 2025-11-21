@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 
 class OrderDetailsDeliveryPage extends StatefulWidget {
   final String orderId;
@@ -116,6 +117,17 @@ class _OrderDetailsDeliveryPageState extends State<OrderDetailsDeliveryPage> {
         deliveryStatus = status;
       }
 
+      // Get order data first to get customer ID
+      final orderSnapshot = await DatabaseService.instance
+          .ref('orders/${widget.orderId}')
+          .get();
+      
+      String? customerId;
+      if (orderSnapshot.exists && orderSnapshot.value is Map) {
+        final orderData = orderSnapshot.value as Map;
+        customerId = orderData['customerId']?.toString();
+      }
+
       await DatabaseService.instance
           .ref('orders/${widget.orderId}')
           .update({'deliveryStatus': deliveryStatus});
@@ -124,6 +136,27 @@ class _OrderDetailsDeliveryPageState extends State<OrderDetailsDeliveryPage> {
         selectedStatus = deliveryStatus;
         orderData?['deliveryStatus'] = deliveryStatus;
       });
+
+      // Send notification to customer
+      if (customerId != null && customerId.isNotEmpty) {
+        if (deliveryStatus == 'out_for_delivery') {
+          await NotificationService.notifyCustomer(
+            customerId: customerId,
+            title: 'Order out for delivery',
+            body: 'Your order #${widget.orderId} is now out for delivery and will arrive soon.',
+            type: 'order_out_for_delivery',
+            data: {'orderId': widget.orderId},
+          );
+        } else if (deliveryStatus == 'delivered') {
+          await NotificationService.notifyCustomer(
+            customerId: customerId,
+            title: 'Order delivered',
+            body: 'Your order #${widget.orderId} has been delivered successfully.',
+            type: 'order_delivered',
+            data: {'orderId': widget.orderId},
+          );
+        }
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Order status updated to "$deliveryStatus"')),

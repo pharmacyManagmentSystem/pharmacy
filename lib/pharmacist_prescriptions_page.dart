@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
+import 'services/notification_service.dart';
 
 class PharmacistPrescriptionsPage extends StatelessWidget {
   const PharmacistPrescriptionsPage({super.key, required this.pharmacyId});
@@ -53,9 +54,6 @@ class PharmacistPrescriptionsPage extends StatelessWidget {
               final productName = data['name']?.toString() ??
                   data['productName']?.toString() ??
                   'Product';
-              final customer = data['customerId']?.toString() ??
-                  data['customerName']?.toString() ??
-                  'Customer';
               final qty = data['quantity']?.toString() ?? '1';
               final url = data['prescriptionUrl']?.toString() ??
                   '';
@@ -312,17 +310,14 @@ class PharmacistPrescriptionsPage extends StatelessWidget {
           'status': 'approved'
         });
 
-        final notifRef = DatabaseService.instance
-            .customerNotificationsRef(customerId)
-            .push();
-        await notifRef.set({
-          'title': 'Prescription approved',
-          'body':
-              'Your prescription for "${data['name'] ?? data['productName']}" was approved. You may complete payment.',
-          'requestId': id,
-          'createdAt': DateTime.now().toIso8601String(),
-          'read': false,
-        });
+        // Send notification using NotificationService
+        await NotificationService.notifyCustomer(
+          customerId: customerId,
+          title: 'Prescription approved',
+          body: 'Your prescription for "${data['name'] ?? data['productName']}" was approved. You may complete payment.',
+          type: 'prescription_approved',
+          data: {'requestId': id},
+        );
       }
 
       await DatabaseService.instance
@@ -379,17 +374,14 @@ class PharmacistPrescriptionsPage extends StatelessWidget {
           'rejectedAt': DateTime.now().toIso8601String(),
         });
 
-        final notifRef = DatabaseService.instance
-            .customerNotificationsRef(customerId)
-            .push();
-        await notifRef.set({
-          'title': 'Prescription rejected',
-          'body':
-              'Your prescription for "${data['name'] ?? data['productName']}" was rejected by the pharmacy.',
-          'requestId': id,
-          'createdAt': DateTime.now().toIso8601String(),
-          'read': false,
-        });
+        // Send notification using NotificationService
+        await NotificationService.notifyCustomer(
+          customerId: customerId,
+          title: 'Prescription rejected',
+          body: 'Your prescription for "${data['name'] ?? data['productName']}" was rejected by the pharmacy.',
+          type: 'prescription_rejected',
+          data: {'requestId': id},
+        );
       }
 
       await DatabaseService.instance

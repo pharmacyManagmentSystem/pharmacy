@@ -8,6 +8,7 @@ import 'pharmacist_requests_page.dart';
 import 'pharmacist_prescriptions_page.dart';
 import 'pharmacist_reports_page.dart';
 import 'expiry_tracker_page.dart';
+import 'deleted_products_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -45,94 +46,137 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Change Password'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: oldPasswordController,
-                  decoration: const InputDecoration(labelText: 'Old Password'),
-                  obscureText: true,
+        bool obscureOldPassword = true;
+        bool obscureNewPassword = true;
+        bool obscureConfirmPassword = true;
+        
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Change Password'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: oldPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Old Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureOldPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureOldPassword = !obscureOldPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureOldPassword,
+                    ),
+                    TextField(
+                      controller: newPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureNewPassword = !obscureNewPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureNewPassword,
+                    ),
+                    TextField(
+                      controller: confirmPasswordController,
+                      decoration: InputDecoration(
+                        labelText: 'Repeat New Password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              obscureConfirmPassword = !obscureConfirmPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      obscureText: obscureConfirmPassword,
+                    ),
+                  ],
                 ),
-                TextField(
-                  controller: newPasswordController,
-                  decoration: const InputDecoration(labelText: 'New Password'),
-                  obscureText: true,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
                 ),
-                TextField(
-                  controller: confirmPasswordController,
-                  decoration:
-                      const InputDecoration(labelText: 'Repeat New Password'),
-                  obscureText: true,
+                SizedBox(
+                  width: 150,
+                  height: 45,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      final oldPassword = oldPasswordController.text.trim();
+                      final newPassword = newPasswordController.text.trim();
+                      final confirmPassword = confirmPasswordController.text.trim();
+
+                      if (newPassword != confirmPassword) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('New passwords do not match')),
+                        );
+                        return;
+                      }
+
+                      final passwordRegex = RegExp(
+                          r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
+
+                      if (!passwordRegex.hasMatch(newPassword)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Password must be at least 6 characters, include upper & lower case letters, a number, and a special character'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      try {
+                        final credential = EmailAuthProvider.credential(
+                          email: user.email!,
+                          password: oldPassword,
+                        );
+                        await user.reauthenticateWithCredential(credential);
+                        await user.updatePassword(newPassword);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Password changed successfully')),
+                        );
+                        Navigator.pop(context);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    },
+                    child: const Text('Change Password'),
+                  ),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            SizedBox(
-              width: 150,
-              height: 45,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isDarkMode ? Colors.blueGrey : const Color(0xFF0288D1),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () async {
-                  final oldPassword = oldPasswordController.text.trim();
-                  final newPassword = newPasswordController.text.trim();
-                  final confirmPassword = confirmPasswordController.text.trim();
-
-                  if (newPassword != confirmPassword) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('New passwords do not match')),
-                    );
-                    return;
-                  }
-
-                  final passwordRegex = RegExp(
-                      r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
-
-                  if (!passwordRegex.hasMatch(newPassword)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Password must be at least 6 characters, include upper & lower case letters, a number, and a special character'),
-                      ),
-                    );
-                    return;
-                  }
-
-                  try {
-                    final credential = EmailAuthProvider.credential(
-                      email: user.email!,
-                      password: oldPassword,
-                    );
-                    await user.reauthenticateWithCredential(credential);
-                    await user.updatePassword(newPassword);
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Password changed successfully')),
-                    );
-                    Navigator.pop(context);
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                },
-                child: const Text('Change Password'),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -342,6 +386,18 @@ class _ProfilePageState extends State<ProfilePage> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const ExpiryTrackerPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  buildButton(
+                    "Deleted Products",
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DeletedProductsPage(),
                         ),
                       );
                     },

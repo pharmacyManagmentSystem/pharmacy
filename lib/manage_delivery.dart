@@ -221,13 +221,17 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Add Delivery Person"),
-        content: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
+      builder: (context) {
+        bool obscurePassword = true;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Add Delivery Person"),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
                 TextFormField(
                   controller: nameController,
                   decoration: const InputDecoration(labelText: "Name"),
@@ -274,8 +278,20 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: "Password"),
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: "Password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setDialogState(() {
+                          obscurePassword = !obscurePassword;
+                        });
+                      },
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty)
                       return "Password is required";
@@ -283,51 +299,53 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
                       return "Must be at least 6 characters";
                     return null;
                   },
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              if (!_formKey.currentState!.validate()) return;
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () async {
+                  if (!_formKey.currentState!.validate()) return;
 
-              try {
-                final credential =
-                    await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                  email: emailController.text.trim(),
-                  password: passwordController.text.trim(),
-                );
+                  try {
+                    final credential =
+                        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                      email: emailController.text.trim(),
+                      password: passwordController.text.trim(),
+                    );
 
-                String imageUrl = "";
-                if (_selectedImage != null) {
-                  imageUrl = await _uploadImage(credential.user!.uid);
-                }
+                    String imageUrl = "";
+                    if (_selectedImage != null) {
+                      imageUrl = await _uploadImage(credential.user!.uid);
+                    }
 
-                await dbRef.child(credential.user!.uid).set({
-                  "name": nameController.text.trim(),
-                  "email": emailController.text.trim(),
-                  "phone": phoneController.text.trim(),
-                  "image": imageUrl,
-                });
+                    await dbRef.child(credential.user!.uid).set({
+                      "name": nameController.text.trim(),
+                      "email": emailController.text.trim(),
+                      "phone": phoneController.text.trim(),
+                      "image": imageUrl,
+                    });
 
-                if (!mounted) return;
-                Navigator.pop(context);
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Error: $e")),
-                );
-              }
-            },
-            child: const Text("Save"),
-          ),
-        ],
-      ),
-    );
+                    if (!mounted) return;
+                    Navigator.pop(context);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Error: $e")),
+                    );
+                  }
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   void _editDeliveryDialog(
@@ -335,8 +353,6 @@ class _ManageDeliveryPageState extends State<ManageDeliveryPage> {
     final nameController = TextEditingController(text: deliveryData['name']);
     final emailController = TextEditingController(text: deliveryData['email']);
     final phoneController = TextEditingController(text: deliveryData['phone']);
-    final imageController =
-        TextEditingController(text: deliveryData['image'] ?? '');
 
     showDialog(
       context: context,

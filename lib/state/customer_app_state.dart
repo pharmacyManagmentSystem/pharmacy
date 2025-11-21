@@ -1,4 +1,5 @@
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -194,17 +195,14 @@ class CustomerAppState extends ChangeNotifier {
                 .child(key)
                 .set(cartEntry);
 
-            final notifRef = DatabaseService.instance
-                .pharmacyNotificationsRef(product.ownerId)
-                .push();
-            await notifRef.set({
-              'title': 'New prescription upload',
-              'body':
-                  'A customer uploaded a prescription for "${product.name}".',
-              'requestId': key,
-              'createdAt': DateTime.now().toIso8601String(),
-              'read': false,
-            });
+            // Send notification using NotificationService
+            await NotificationService.notifyPharmacist(
+              pharmacistId: product.ownerId,
+              title: 'New prescription upload',
+              body: 'A customer uploaded a prescription for "${product.name}".',
+              type: 'prescription',
+              data: {'requestId': key},
+            );
           }
         } catch (e) {
           print('Failed to create pending prescription entry: $e');
@@ -504,14 +502,26 @@ class CustomerAppState extends ChangeNotifier {
       // Update batches if they exist, otherwise update legacy quantity
       if (batches != null && batches.isNotEmpty) {
         // Deduct from batches (FIFO - First In First Out - earliest expiry first)
+        // Only use non-expired batches
+        final now = DateTime.now();
         int remainingToDeduct = cartItem.quantity;
-        final sortedBatchIds = batches.entries.toList()
+        
+        // Filter and sort batches: non-expired first, sorted by expiry date (earliest first)
+        final sortedBatchIds = batches.entries.where((entry) {
+          final expiryDateStr = entry.value['expiryDate']?.toString();
+          if (expiryDateStr == null || expiryDateStr.isEmpty) return false;
+          final expiryDate = DateTime.tryParse(expiryDateStr);
+          if (expiryDate == null) return false;
+          // Only include non-expired batches
+          return expiryDate.isAfter(now);
+        }).toList()
           ..sort((a, b) {
             final aDate =
                 DateTime.tryParse(a.value['expiryDate']?.toString() ?? '');
             final bDate =
                 DateTime.tryParse(b.value['expiryDate']?.toString() ?? '');
             if (aDate == null || bDate == null) return 0;
+            // Sort by expiry date: earliest expiry first (FIFO)
             return aDate.compareTo(bDate);
           });
 
@@ -538,6 +548,12 @@ class CustomerAppState extends ChangeNotifier {
 
             remainingToDeduct -= deductQty;
           }
+        }
+        
+        // If we couldn't deduct all quantity from non-expired batches, throw error
+        if (remainingToDeduct > 0) {
+          throw StateError(
+              'Insufficient non-expired stock for "${cartItem.product.name}". Available non-expired: ${cartItem.quantity - remainingToDeduct}, Requested: ${cartItem.quantity}');
         }
 
         int totalQuantity = 0;
@@ -607,6 +623,24 @@ class CustomerAppState extends ChangeNotifier {
     await rootRef.update(updates);
 
     await DatabaseService.instance.ref('customer_cart/$customerId').remove();
+
+    // Send notification to customer about order creation
+    await NotificationService.notifyCustomer(
+      customerId: customerId,
+      title: 'Order placed successfully',
+      body: 'Your order #$orderId has been placed successfully. Total: ${cartTotal.toStringAsFixed(2)} OMR',
+      type: 'order_created',
+      data: {'orderId': orderId},
+    );
+
+    // Send notification to pharmacist about new order
+    await NotificationService.notifyPharmacist(
+      pharmacistId: pharmacyId,
+      title: 'New order received',
+      body: 'You have received a new order #$orderId from $customerName. Total: ${cartTotal.toStringAsFixed(2)} OMR',
+      type: 'new_order',
+      data: {'orderId': orderId, 'customerId': customerId, 'customerName': customerName},
+    );
 
     clearCart();
     _shippingAddress = null;

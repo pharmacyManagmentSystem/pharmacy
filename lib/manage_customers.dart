@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
 import 'services/storage_service.dart';
+import 'services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ManageCustomersPage extends StatefulWidget {
@@ -262,6 +263,34 @@ class _ManageCustomersPageState extends State<ManageCustomersPage> {
 
   Future<void> _updateStatus(String id, String newStatus) async {
     await dbRef.child(id).update({"status": newStatus});
+    
+    // Send notification based on status
+    if (newStatus == 'suspended') {
+      await NotificationService.notifyCustomer(
+        customerId: id,
+        title: 'Account suspended',
+        body: 'Your account has been temporarily suspended by the administrator. Please contact support for more information.',
+        type: 'account_suspended',
+        data: {'status': newStatus},
+      );
+    } else if (newStatus == 'deleted') {
+      await NotificationService.notifyCustomer(
+        customerId: id,
+        title: 'Account deleted',
+        body: 'Your account has been deleted by the administrator. If you believe this is an error, please contact support.',
+        type: 'account_deleted',
+        data: {'status': newStatus},
+      );
+    } else if (newStatus == 'active') {
+      await NotificationService.notifyCustomer(
+        customerId: id,
+        title: 'Account reactivated',
+        body: 'Your account has been reactivated. You can now use all features of the app.',
+        type: 'account_reactivated',
+        data: {'status': newStatus},
+      );
+    }
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Account status updated to $newStatus")),
     );

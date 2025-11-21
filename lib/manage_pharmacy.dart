@@ -148,15 +148,19 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title:
-            Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
-        content: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      builder: (context) {
+        bool obscurePassword = true;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title:
+                  Text(pharmacist == null ? "Add New Pharmacist" : "Edit Pharmacist"),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                 GestureDetector(
                   onTap: pickImage,
                   child: CircleAvatar(
@@ -232,8 +236,20 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: passwordController,
-                    decoration: const InputDecoration(labelText: "Password"),
-                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: "Password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            obscurePassword = !obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    obscureText: obscurePassword,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return "Please enter a password";
@@ -244,23 +260,25 @@ class _ManagePharmacistPageState extends State<ManagePharmacistPage> {
                       return null;
                     },
                   ),
-                ],
-              ],
+                    ],
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: savePharmacist,
-            child: const Text("Save"),
-          ),
-        ],
-      ),
-    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: savePharmacist,
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   void _confirmDeletePharmacist(String id) {
