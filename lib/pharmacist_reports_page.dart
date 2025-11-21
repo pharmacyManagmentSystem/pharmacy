@@ -14,7 +14,7 @@ class PharmacistReportsPage extends StatefulWidget {
 class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
   final user = FirebaseAuth.instance.currentUser;
   String _selectedPeriod = 'Daily';
-  final List<String> _periods = ['Daily', 'Weekly', 'Monthly'];
+  final List<String> _periods = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
   bool _loading = true;
 
   Map<String, dynamic> _orderStats = {};
@@ -23,6 +23,7 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
   List<Map<String, dynamic>> _topSellingProducts = [];
   List<Map<String, dynamic>> _outOfStockProducts = [];
   List<Map<String, dynamic>> _cancelledOrders = [];
+  List<Map<String, dynamic>> _fastMovingProducts = []; // Products selling fast - need restock
 
   @override
   void initState() {
@@ -113,6 +114,9 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         break;
       case 'Monthly':
         startDate = DateTime(now.year, now.month, 1);
+        break;
+      case 'Yearly':
+        startDate = DateTime(now.year, 1, 1);
         break;
       default:
         startDate = DateTime(now.year, now.month, now.day);
@@ -286,13 +290,158 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         (a['daysUntilExpiry'] as int).compareTo(b['daysUntilExpiry'] as int));
 
     final topSelling = await _getTopSellingProducts();
+    final fastMoving = await _getFastMovingProducts();
 
     setState(() {
       _lowStockProducts = lowStock;
       _nearExpiryProducts = nearExpiry;
       _outOfStockProducts = outOfStock;
       _topSellingProducts = topSelling;
+      _fastMovingProducts = fastMoving;
     });
+  }
+
+  Future<List<Map<String, dynamic>>> _getFastMovingProducts() async {
+    if (user == null) return [];
+
+    // Get sales data from orders
+    final ordersRef = DatabaseService.instance.pharmacyOrdersRef(user!.uid);
+    final ordersSnapshot = await ordersRef.get();
+
+    if (!ordersSnapshot.exists || ordersSnapshot.value == null) return [];
+
+    final orders = ordersSnapshot.value as Map;
+    final productSales = <String, Map<String, dynamic>>{};
+
+    // Calculate sales in the selected period
+    final now = DateTime.now();
+    DateTime startDate;
+    switch (_selectedPeriod) {
+      case 'Daily':
+        startDate = DateTime(now.year, now.month, now.day);
+        break;
+      case 'Weekly':
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        startDate = DateTime(startDate.year, startDate.month, startDate.day);
+        break;
+      case 'Monthly':
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      case 'Yearly':
+        startDate = DateTime(now.year, 1, 1);
+        break;
+      default:
+        startDate = DateTime(now.year, now.month, now.day);
+    }
+
+    for (var entry in orders.entries) {
+      final orderData = entry.value;
+      if (orderData is! Map) continue;
+
+      final status = orderData['status']?.toString() ?? '';
+      if (status != 'delivered') continue;
+
+      final createdAt = _parseCreatedAt(orderData['createdAt']);
+      if (createdAt == null || createdAt.isBefore(startDate)) continue;
+
+      final items = orderData['items'];
+      if (items is! Map) continue;
+
+      for (var itemEntry in items.entries) {
+        final item = itemEntry.value;
+        if (item is! Map) continue;
+
+        final productId = item['productId']?.toString() ?? itemEntry.key.toString();
+        final productName = item['name']?.toString() ?? 'Unknown';
+        final quantity = item['quantity'] is num
+            ? (item['quantity'] as num).toInt()
+            : int.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+
+        if (productSales.containsKey(productId)) {
+          productSales[productId]!['sales'] = 
+              (productSales[productId]!['sales'] as int) + quantity;
+        } else {
+          productSales[productId] = {
+            'id': productId,
+            'name': productName,
+            'sales': quantity,
+          };
+        }
+      }
+    }
+
+    // Get current stock for each product
+    final productsRef = DatabaseService.instance.pharmacistProductsRef(user!.uid);
+    final productsSnapshot = await productsRef.get();
+
+    if (!productsSnapshot.exists || productsSnapshot.value == null) {
+      return [];
+    }
+
+    final products = productsSnapshot.value as Map;
+    final fastMoving = <Map<String, dynamic>>[];
+
+    for (var entry in productSales.entries) {
+      final productId = entry.key;
+      final salesData = entry.value;
+      final sales = salesData['sales'] as int;
+
+      // Get current stock
+      final product = products[productId];
+      if (product == null || product is! Map) continue;
+
+      final currentStock = product['quantity'] is num
+          ? (product['quantity'] as num).toInt()
+          : int.tryParse(product['quantity']?.toString() ?? '0') ?? 0;
+      
+      final productName = product['name']?.toString() ?? salesData['name'];
+
+      // Calculate days of stock remaining based on sales velocity
+      int daysOfStockLeft = 999;
+      if (sales > 0) {
+        // Calculate average daily sales based on period
+        double dailySales;
+        switch (_selectedPeriod) {
+          case 'Daily':
+            dailySales = sales.toDouble();
+            break;
+          case 'Weekly':
+            dailySales = sales / 7;
+            break;
+          case 'Monthly':
+            dailySales = sales / 30;
+            break;
+          case 'Yearly':
+            dailySales = sales / 365;
+            break;
+          default:
+            dailySales = sales.toDouble();
+        }
+        
+        if (dailySales > 0) {
+          daysOfStockLeft = (currentStock / dailySales).floor();
+        }
+      }
+
+      // Add to fast moving if:
+      // - Has any sales AND (stock will run out soon OR stock is low compared to sales)
+      if (sales >= 1 && (daysOfStockLeft < 30 || currentStock < sales * 3)) {
+        fastMoving.add({
+          'id': productId,
+          'name': productName,
+          'sales': sales,
+          'currentStock': currentStock,
+          'daysOfStockLeft': daysOfStockLeft,
+          'urgency': daysOfStockLeft < 7 ? 'high' : (daysOfStockLeft < 14 ? 'medium' : 'low'),
+        });
+      }
+    }
+
+    // Sort by urgency (days of stock left)
+    fastMoving.sort((a, b) => 
+        (a['daysOfStockLeft'] as int).compareTo(b['daysOfStockLeft'] as int));
+
+    return fastMoving.take(10).toList();
   }
 
   Future<List<Map<String, dynamic>>> _getTopSellingProducts() async {
@@ -364,6 +513,972 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
     }
 
     return topSelling;
+  }
+
+  void _showExpandedChart(String title, Widget chart) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+            maxWidth: MediaQuery.of(context).size.width * 0.95,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[600],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.analytics, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _selectedPeriod,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              // Chart
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: chart,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showExpandedOrdersChart() {
+    final pending = _orderStats['periodPending'] ?? 0;
+    final readyForDelivery = _orderStats['periodReadyForDelivery'] ?? 0;
+    final completed = _orderStats['periodCompleted'] ?? 0;
+    final cancelled = _orderStats['periodCancelled'] ?? 0;
+    final total = pending + readyForDelivery + completed + cancelled;
+
+    _showExpandedChart(
+      'Orders Status - $_selectedPeriod',
+      Column(
+        children: [
+          Expanded(
+            flex: 2,
+            child: total == 0
+                ? const Center(child: Text('No data available'))
+                : PieChart(
+                    PieChartData(
+                      sectionsSpace: 3,
+                      centerSpaceRadius: 60,
+                      sections: [
+                        PieChartSectionData(
+                          value: pending.toDouble(),
+                          title: pending > 0 ? 'Pending\n$pending' : '',
+                          color: Colors.orange[400]!,
+                          radius: 80,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: readyForDelivery.toDouble(),
+                          title: readyForDelivery > 0 ? 'Ready\n$readyForDelivery' : '',
+                          color: Colors.green[400]!,
+                          radius: 80,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: completed.toDouble(),
+                          title: completed > 0 ? 'Completed\n$completed' : '',
+                          color: Colors.teal[400]!,
+                          radius: 80,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        PieChartSectionData(
+                          value: cancelled.toDouble(),
+                          title: cancelled > 0 ? 'Cancelled\n$cancelled' : '',
+                          color: Colors.red[400]!,
+                          radius: 80,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 20),
+          // Detailed stats
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                _buildDetailRow('Total Orders', '$total', Colors.blue),
+                const Divider(),
+                _buildDetailRow('Pending', '$pending', Colors.orange),
+                _buildDetailRow('Ready for Delivery', '$readyForDelivery', Colors.green),
+                _buildDetailRow('Completed', '$completed', Colors.teal),
+                _buildDetailRow('Cancelled', '$cancelled', Colors.red),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExpandedRevenueChart() {
+    final periodRevenue = _orderStats['periodRevenue'] ?? 0.0;
+    final totalRevenue = _orderStats['revenue'] ?? 0.0;
+    final periodCompleted = _orderStats['periodCompleted'] ?? 0;
+    final totalCompleted = _orderStats['completed'] ?? 0;
+
+    _showExpandedChart(
+      'Revenue Analytics - $_selectedPeriod',
+      Column(
+        children: [
+          // Big revenue display
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple[400]!, Colors.purple[700]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.account_balance_wallet, color: Colors.white, size: 50),
+                  const SizedBox(height: 16),
+                  Text(
+                    '${periodRevenue.toStringAsFixed(2)} OMR',
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$_selectedPeriod Revenue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Stats comparison
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                _buildDetailRow('$_selectedPeriod Revenue', '${periodRevenue.toStringAsFixed(2)} OMR', Colors.purple),
+                const Divider(),
+                _buildDetailRow('All Time Revenue', '${totalRevenue.toStringAsFixed(2)} OMR', Colors.blue),
+                const Divider(),
+                _buildDetailRow('$_selectedPeriod Orders', '$periodCompleted', Colors.green),
+                _buildDetailRow('All Time Orders', '$totalCompleted', Colors.teal),
+                if (periodCompleted > 0) ...[
+                  const Divider(),
+                  _buildDetailRow(
+                    'Avg Order Value',
+                    '${(periodRevenue / periodCompleted).toStringAsFixed(2)} OMR',
+                    Colors.orange,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExpandedInventoryAlerts(String type) {
+    List<Map<String, dynamic>> items;
+    String title;
+    Color color;
+    IconData icon;
+
+    switch (type) {
+      case 'lowStock':
+        items = _lowStockProducts;
+        title = 'Low Stock Products';
+        color = Colors.orange;
+        icon = Icons.warning_amber_rounded;
+        break;
+      case 'nearExpiry':
+        items = _nearExpiryProducts;
+        title = 'Near Expiry Products';
+        color = Colors.red;
+        icon = Icons.schedule;
+        break;
+      case 'outOfStock':
+        items = _outOfStockProducts;
+        title = 'Out of Stock Products';
+        color = Colors.red[700]!;
+        icon = Icons.inventory_2_outlined;
+        break;
+      case 'fastMoving':
+        items = _fastMovingProducts;
+        title = 'Fast Moving Products - Restock Soon!';
+        color = Colors.deepOrange;
+        icon = Icons.local_fire_department;
+        break;
+      default:
+        return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '$title (${items.length})',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              // List
+              Flexible(
+                child: items.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Text('No items found'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: type == 'fastMoving'
+                                ? _buildFastMovingListItem(item, index, color)
+                                : Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              backgroundColor: color.withOpacity(0.1),
+                                              child: Text(
+                                                '${index + 1}',
+                                                style: TextStyle(color: color, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item['name'] as String,
+                                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  type == 'nearExpiry'
+                                                      ? Text(
+                                                          'Expires in ${item['daysUntilExpiry']} days - ${DateFormat('yyyy-MM-dd').format(item['expiryDate'] as DateTime)}',
+                                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                                        )
+                                                      : Text(
+                                                          'Quantity: ${item['quantity']}',
+                                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                                        ),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: color.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                type == 'nearExpiry'
+                                                    ? '${item['daysUntilExpiry']}d'
+                                                    : '${item['quantity']}',
+                                                style: TextStyle(
+                                                  color: color,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        // Add Stock Button
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton.icon(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              _showAddStockDialog(
+                                                item['id'] as String, 
+                                                item['name'] as String, 
+                                                item['quantity'] as int? ?? 0,
+                                              );
+                                            },
+                                            icon: const Icon(Icons.add_shopping_cart, size: 16),
+                                            label: const Text('Add Stock'),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: Colors.green,
+                                              side: const BorderSide(color: Colors.green),
+                                              padding: const EdgeInsets.symmetric(vertical: 8),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showExpandedTopProducts() {
+    _showExpandedChart(
+      'Top Selling Products',
+      _topSellingProducts.isEmpty
+          ? const Center(child: Text('No sales data available'))
+          : ListView.builder(
+              itemCount: _topSellingProducts.length,
+              itemBuilder: (context, index) {
+                final product = _topSellingProducts[index];
+                final maxSales = _topSellingProducts.isNotEmpty
+                    ? (_topSellingProducts.first['sales'] as int)
+                    : 1;
+                final sales = product['sales'] as int;
+                final percentage = sales / maxSales;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: index < 3 ? Colors.amber : Colors.grey[300],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    color: index < 3 ? Colors.white : Colors.grey[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                product['name'] as String,
+                                style: const TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$sales sales',
+                                style: TextStyle(
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: percentage,
+                            backgroundColor: Colors.grey[200],
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              index < 3 ? Colors.green : Colors.blue,
+                            ),
+                            minHeight: 8,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // Add Stock Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showAddStockDialog(
+                                product['id'] as String, 
+                                product['name'] as String, 
+                                0, // We don't have current stock here
+                              );
+                            },
+                            icon: const Icon(Icons.add_shopping_cart, size: 16),
+                            label: const Text('Add Stock'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.green,
+                              side: const BorderSide(color: Colors.green),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildFastMovingListItem(Map<String, dynamic> item, int index, Color color) {
+    final sales = item['sales'] as int;
+    final currentStock = item['currentStock'] as int;
+    final daysOfStockLeft = item['daysOfStockLeft'] as int;
+    final urgency = item['urgency'] as String;
+    final isUrgent = urgency == 'high';
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isUrgent ? Colors.red : Colors.orange,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    isUrgent ? Icons.priority_high : Icons.trending_up,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['name'] as String,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        if (isUrgent)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'URGENT',
+                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        Text(
+                          'Sold $_selectedPeriod: $sales',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Stats row
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildMiniStat('Current Stock', '$currentStock', 
+                    currentStock < 10 ? Colors.red : Colors.blue),
+                Container(width: 1, height: 30, color: Colors.grey[300]),
+                _buildMiniStat('$_selectedPeriod Sales', '$sales', Colors.green),
+                Container(width: 1, height: 30, color: Colors.grey[300]),
+                _buildMiniStat('Days Left', 
+                    daysOfStockLeft > 100 ? '∞' : '$daysOfStockLeft', 
+                    daysOfStockLeft < 7 ? Colors.red : Colors.orange),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Add Stock Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _showAddStockDialog(item['id'] as String, item['name'] as String, currentStock);
+              },
+              icon: const Icon(Icons.add_shopping_cart, size: 18),
+              label: const Text('Add Stock'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Recommendation
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isUrgent ? Colors.red[50] : Colors.orange[50],
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isUrgent ? Colors.red[200]! : Colors.orange[200]!,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline,
+                  size: 16,
+                  color: isUrgent ? Colors.red[700] : Colors.orange[700],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isUrgent
+                        ? 'Restock immediately! Running out in $daysOfStockLeft days'
+                        : 'Consider restocking soon to meet demand',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isUrgent ? Colors.red[700] : Colors.orange[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddStockDialog(String productId, String productName, int currentStock) async {
+    final quantityController = TextEditingController();
+    DateTime? expiryDate;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.add_shopping_cart, color: Colors.green[700]),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Add Stock', style: TextStyle(fontSize: 18)),
+                    Text(
+                      productName,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Current stock info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.inventory, color: Colors.blue[700], size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Current Stock: $currentStock',
+                        style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Quantity input
+                TextFormField(
+                  controller: quantityController,
+                  decoration: InputDecoration(
+                    labelText: 'Quantity to Add',
+                    hintText: 'Enter quantity',
+                    prefixIcon: const Icon(Icons.add),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                // Expiry date picker
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        expiryDate == null
+                            ? 'Expiry Date: Not selected'
+                            : 'Expiry: ${DateFormat('yyyy-MM-dd').format(expiryDate!)}',
+                        style: TextStyle(
+                          color: expiryDate == null ? Colors.red : Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_today, color: Colors.blue),
+                      onPressed: () async {
+                        final pickedDate = await showDatePicker(
+                          context: ctx,
+                          initialDate: DateTime.now().add(const Duration(days: 365)),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+                        if (pickedDate != null) {
+                          setDialogState(() {
+                            expiryDate = pickedDate;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                if (expiryDate == null)
+                  const Text(
+                    'Expiry date is required',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (expiryDate == null) {
+                  setDialogState(() {});
+                  return;
+                }
+
+                final quantity = int.tryParse(quantityController.text.trim());
+                if (quantity == null || quantity <= 0) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter valid quantity')),
+                  );
+                  return;
+                }
+
+                // Add the batch to the product
+                try {
+                  final productRef = DatabaseService.instance
+                      .pharmacistProductsRef(user!.uid)
+                      .child(productId);
+                  
+                  final snapshot = await productRef.get();
+                  if (!snapshot.exists) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Product not found')),
+                      );
+                    }
+                    return;
+                  }
+
+                  final productData = Map<String, dynamic>.from(snapshot.value as Map);
+                  
+                  // Get existing batches
+                  Map<String, dynamic> batches = {};
+                  if (productData['batches'] != null && productData['batches'] is Map) {
+                    batches = Map<String, dynamic>.from(productData['batches'] as Map);
+                  }
+
+                  // Add new batch
+                  final now = DateTime.now();
+                  final batchId = '${now.millisecondsSinceEpoch}_${(now.microsecondsSinceEpoch % 1000000).toString().padLeft(6, '0')}';
+                  
+                  batches[batchId] = {
+                    'expiryDate': expiryDate!.toIso8601String(),
+                    'quantity': quantity,
+                  };
+
+                  // Calculate total quantity
+                  int totalQuantity = 0;
+                  batches.values.forEach((batch) {
+                    if (batch is Map && batch['quantity'] != null) {
+                      final qty = batch['quantity'] is num
+                          ? (batch['quantity'] as num).toInt()
+                          : int.tryParse(batch['quantity'].toString()) ?? 0;
+                      totalQuantity += qty;
+                    }
+                  });
+
+                  // Update product
+                  await productRef.update({
+                    'batches': batches,
+                    'quantity': totalQuantity,
+                    'status': totalQuantity > 0 ? 'in_stock' : 'out_of_stock',
+                  });
+
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.white),
+                            const SizedBox(width: 10),
+                            Text('Added $quantity units to $productName'),
+                          ],
+                        ),
+                        backgroundColor: Colors.green,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    // Reload reports
+                    _loadReports();
+                  }
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Error: ${e.toString()}')),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Stock'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -667,9 +1782,19 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _buildCompactOrderChart()),
+            Expanded(
+              child: GestureDetector(
+                onTap: _showExpandedOrdersChart,
+                child: _buildCompactOrderChart(),
+              ),
+            ),
             const SizedBox(width: 16),
-            Expanded(child: _buildCompactRevenueCard()),
+            Expanded(
+              child: GestureDetector(
+                onTap: _showExpandedRevenueChart,
+                child: _buildCompactRevenueCard(),
+              ),
+            ),
           ],
         ),
       ],
@@ -722,13 +1847,19 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Orders Status',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Orders Status',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              Icon(Icons.open_in_full, size: 16, color: Colors.grey[400]),
+            ],
           ),
           const SizedBox(height: 12),
           Expanded(
@@ -851,7 +1982,7 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
   Widget _buildCompactRevenueCard() {
     final revenue = _orderStats['periodRevenue'] ?? 0.0;
     return Container(
-      height: 200,
+      height: 240,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -867,24 +1998,46 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.trending_up, color: Colors.white, size: 40),
-          const SizedBox(height: 16),
-          Text(
-            '${revenue.toStringAsFixed(2)}',
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _selectedPeriod,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 12,
+                ),
+              ),
+              Icon(Icons.open_in_full, size: 16, color: Colors.white.withOpacity(0.6)),
+            ],
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'OMR Revenue',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.trending_up, color: Colors.white, size: 40),
+                const SizedBox(height: 12),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '${revenue.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'OMR Revenue',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -910,34 +2063,72 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
         ),
         const SizedBox(height: 16),
         if (_lowStockProducts.isNotEmpty)
-          _buildAlertCard(
-            'Low Stock',
-            '${_lowStockProducts.length} products',
-            Icons.warning_amber_rounded,
-            Colors.orange,
-            _lowStockProducts.length,
+          GestureDetector(
+            onTap: () => _showExpandedInventoryAlerts('lowStock'),
+            child: _buildAlertCard(
+              'Low Stock',
+              '${_lowStockProducts.length} products - Tap to view',
+              Icons.warning_amber_rounded,
+              Colors.orange,
+              _lowStockProducts.length,
+            ),
           ),
         if (_lowStockProducts.isNotEmpty) const SizedBox(height: 12),
         if (_nearExpiryProducts.isNotEmpty)
-          _buildAlertCard(
-            'Near Expiry',
-            '${_nearExpiryProducts.length} products',
-            Icons.schedule,
-            Colors.red,
-            _nearExpiryProducts.length,
+          GestureDetector(
+            onTap: () => _showExpandedInventoryAlerts('nearExpiry'),
+            child: _buildAlertCard(
+              'Near Expiry',
+              '${_nearExpiryProducts.length} products - Tap to view',
+              Icons.schedule,
+              Colors.red,
+              _nearExpiryProducts.length,
+            ),
           ),
         if (_nearExpiryProducts.isNotEmpty) const SizedBox(height: 12),
         if (_outOfStockProducts.isNotEmpty)
-          _buildAlertCard(
-            'Out of Stock',
-            '${_outOfStockProducts.length} products',
-            Icons.inventory_2_outlined,
-            Colors.red[700]!,
-            _outOfStockProducts.length,
+          GestureDetector(
+            onTap: () => _showExpandedInventoryAlerts('outOfStock'),
+            child: _buildAlertCard(
+              'Out of Stock',
+              '${_outOfStockProducts.length} products - Tap to view',
+              Icons.inventory_2_outlined,
+              Colors.red[700]!,
+              _outOfStockProducts.length,
+            ),
           ),
+        if (_outOfStockProducts.isNotEmpty) const SizedBox(height: 12),
+        // Fast Moving Products - Need Restock
+        if (_fastMovingProducts.isNotEmpty)
+          GestureDetector(
+            onTap: () => _showExpandedInventoryAlerts('fastMoving'),
+            child: _buildAlertCard(
+              '🔥 Fast Moving - Restock Soon',
+              '${_fastMovingProducts.length} products selling fast - Tap to view',
+              Icons.local_fire_department,
+              Colors.deepOrange,
+              _fastMovingProducts.length,
+            ),
+          ),
+        if (_fastMovingProducts.isNotEmpty) const SizedBox(height: 12),
+        // Top Selling Products - for restocking reference
+        if (_topSellingProducts.isNotEmpty)
+          GestureDetector(
+            onTap: _showExpandedTopProducts,
+            child: _buildAlertCard(
+              '⭐ Top Selling Products',
+              '${_topSellingProducts.length} best sellers - Tap to view',
+              Icons.star,
+              Colors.amber[700]!,
+              _topSellingProducts.length,
+            ),
+          ),
+        if (_topSellingProducts.isNotEmpty) const SizedBox(height: 12),
         if (_lowStockProducts.isEmpty &&
             _nearExpiryProducts.isEmpty &&
-            _outOfStockProducts.isEmpty)
+            _outOfStockProducts.isEmpty &&
+            _fastMovingProducts.isEmpty &&
+            _topSellingProducts.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -1040,17 +2231,29 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            'Top Selling Products',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Top Selling Products',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _showExpandedTopProducts,
+                icon: const Icon(Icons.open_in_full, size: 16),
+                label: const Text('View All'),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        GestureDetector(
+          onTap: _showExpandedTopProducts,
+          child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1127,6 +2330,7 @@ class _PharmacistReportsPageState extends State<PharmacistReportsPage> {
               }),
             ],
           ),
+        ),
         ),
       ],
     );

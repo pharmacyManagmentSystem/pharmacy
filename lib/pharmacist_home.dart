@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'login.dart';
 import 'profile_page.dart';
 import 'pharmacist_reports_page.dart';
+import 'models/product.dart';
 
 class PharmacistHome extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -41,6 +42,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
   ];
 
   bool isDarkMode = false;
+  bool _showAIPredictions = true;
 
   @override
   void initState() {
@@ -63,6 +65,327 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         child: Text(text, style: const TextStyle(fontSize: 16)),
       ),
     );
+  }
+
+  Widget _buildAIPredictionsWidget(List<Product> products) {
+    // AI-driven analytics to predict high-demand products
+    final predictedProducts = _getPredictedHighDemandProducts(products);
+    
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3949AB).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.amberAccent,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI-Powered Predictions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'High-demand products forecast',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => setState(() => _showAIPredictions = !_showAIPredictions),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      _showAIPredictions 
+                          ? Icons.keyboard_arrow_up 
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_showAIPredictions) ...[
+            Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.1),
+            ),
+            if (predictedProducts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Add products to see AI predictions...',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              )
+            else
+              SizedBox(
+                height: 130,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  itemCount: predictedProducts.length,
+                  itemBuilder: (context, index) {
+                    final prediction = predictedProducts[index];
+                    return Container(
+                      width: 145,
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.trending_up,
+                                    color: prediction['trend'] == 'high' 
+                                        ? Colors.greenAccent 
+                                        : Colors.amberAccent,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${prediction['confidence']}%',
+                                    style: const TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(
+                                'Qty: ${prediction['quantity']}',
+                                style: TextStyle(
+                                  color: (prediction['quantity'] as int) < 20 
+                                      ? Colors.redAccent 
+                                      : Colors.white70,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Expanded(
+                            child: Text(
+                              prediction['name'] as String,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.amberAccent.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  prediction['demandLevel'] as String,
+                                  style: const TextStyle(
+                                    color: Colors.amberAccent,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () async {
+                                  final productId = prediction['productId'] as String;
+                                  final snapshot = await dbRef.child(productId).get();
+                                  if (snapshot.exists && snapshot.value is Map) {
+                                    final productData = Map<String, dynamic>.from(snapshot.value as Map);
+                                    productData['key'] = productId;
+                                    showBatchesDialog(productData);
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.greenAccent,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.add,
+                                        color: Color(0xFF1A237E),
+                                        size: 12,
+                                      ),
+                                      SizedBox(width: 2),
+                                      Text(
+                                        'Stock',
+                                        style: TextStyle(
+                                          color: Color(0xFF1A237E),
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _getPredictedHighDemandProducts(List<Product> products) {
+    if (products.isEmpty) return [];
+    
+    // AI-driven demand prediction algorithm
+    // Factors: price competitiveness, category trends, stock levels
+    final List<Map<String, dynamic>> predictions = [];
+    
+    // Calculate average price per category for analysis
+    final categoryPrices = <String, List<double>>{};
+    for (final p in products) {
+      categoryPrices.putIfAbsent(p.category, () => []).add(p.price);
+    }
+    
+    final categoryAvg = categoryPrices.map((cat, prices) {
+      final avg = prices.reduce((a, b) => a + b) / prices.length;
+      return MapEntry(cat, avg);
+    });
+    
+    // Analyze each product for demand prediction
+    for (final product in products) {
+      final avgPrice = categoryAvg[product.category] ?? product.price;
+      
+      // Demand score calculation (simplified AI model)
+      double demandScore = 50.0;
+      
+      // Price competitiveness factor
+      if (product.price < avgPrice) {
+        demandScore += (avgPrice - product.price) / avgPrice * 30;
+      }
+      
+      // Stock scarcity factor (lower stock = higher predicted demand)
+      if (product.totalQuantity < 20) {
+        demandScore += 15;
+      } else if (product.totalQuantity < 50) {
+        demandScore += 8;
+      }
+      
+      // Category popularity boost
+      final categoryPopularity = {
+        'Medicines': 15,
+        'Vitamins and supplements': 12,
+        'First aid': 10,
+        'Baby and family care': 10,
+        'Personal care': 8,
+        'Skin and beauty care': 7,
+        'Fitness & diet': 6,
+      };
+      demandScore += categoryPopularity[product.category] ?? 5;
+      
+      // Normalize score
+      demandScore = demandScore.clamp(0, 100);
+      
+      if (demandScore > 60) {
+        predictions.add({
+          'name': product.name,
+          'productId': product.id,
+          'quantity': product.totalQuantity,
+          'confidence': demandScore.round(),
+          'trend': demandScore > 80 ? 'high' : 'medium',
+          'demandLevel': demandScore > 80 
+              ? 'Very High' 
+              : demandScore > 70 
+                  ? 'High' 
+                  : 'Moderate',
+        });
+      }
+    }
+    
+    // Sort by confidence and return top predictions
+    predictions.sort((a, b) => (b['confidence'] as int).compareTo(a['confidence'] as int));
+    return predictions.take(5).toList();
   }
 
   Future<void> addProduct(
@@ -1274,6 +1597,29 @@ class _PharmacistHomeState extends State<PharmacistHome> {
             ),
           ),
           const SizedBox(height: 10),
+          // AI Predictions Widget
+          StreamBuilder(
+            stream: dbRef.onValue,
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                Map data = (snapshot.data!.snapshot.value as Map);
+                List<Product> productList = [];
+                data.forEach((key, value) {
+                  if (value is Map) {
+                    final map = Map<dynamic, dynamic>.from(value);
+                    final ownerId = map['ownerId']?.toString() ?? user!.uid;
+                    productList.add(Product.fromMap(
+                      id: key.toString(),
+                      ownerId: ownerId,
+                      data: map,
+                    ));
+                  }
+                });
+                return _buildAIPredictionsWidget(productList);
+              }
+              return _buildAIPredictionsWidget([]);
+            },
+          ),
           Expanded(
             child: StreamBuilder(
               stream: dbRef.onValue,

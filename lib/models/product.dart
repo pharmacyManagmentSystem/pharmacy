@@ -40,6 +40,21 @@ class Product {
     return quantity ?? 0;
   }
 
+  // Check if product has any non-expired batches
+  bool get hasNonExpiredBatches {
+    final now = DateTime.now();
+    if (batches != null && batches!.isNotEmpty) {
+      // Check if at least one batch is not expired
+      return batches!.any((batch) => batch.expiryDate.isAfter(now));
+    }
+    // Legacy: check expiryDate if batches don't exist
+    if (expiryDate != null) {
+      return expiryDate!.isAfter(now);
+    }
+    // If no expiry date, consider it as non-expired
+    return true;
+  }
+
   factory Product.fromMap({
     required String id,
     required String ownerId,

@@ -4,6 +4,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'services/database_service.dart';
 import 'customer_home.dart';
 import 'login.dart';
+import 'localization/app_localizations.dart';
+import 'localization/language_switcher.dart';
 
 class Registration extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -26,6 +28,7 @@ class _RegistrationState extends State<Registration> {
   final _formKey = GlobalKey<FormState>();
 
   void _registerCustomer() async {
+    final loc = AppLocalizations.of(context)!;
     if (_formKey.currentState!.validate()) {
       try {
         UserCredential credential = await auth.createUserWithEmailAndPassword(
@@ -43,7 +46,7 @@ class _RegistrationState extends State<Registration> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful!')),
+          SnackBar(content: Text(loc.registrationSuccessful)),
         );
         Navigator.pushReplacement(
           context,
@@ -65,7 +68,7 @@ class _RegistrationState extends State<Registration> {
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: ${e.toString()}')),
+          SnackBar(content: Text('${loc.registrationFailed}: ${e.toString()}')),
         );
       }
     }
@@ -74,6 +77,8 @@ class _RegistrationState extends State<Registration> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
       backgroundColor: isDarkMode ? Colors.grey[900] : const Color(0xFFB2F0F6),
       body: Center(
@@ -85,13 +90,28 @@ class _RegistrationState extends State<Registration> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Language Switcher
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDarkMode ? Colors.grey[800] : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: LanguageToggleButton(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Image.asset(
                     'assets/pharmacy_icon.png',
                     height: 120,
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Sign Up',
+                    loc.signUp,
                     style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -99,29 +119,30 @@ class _RegistrationState extends State<Registration> {
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      hintText: 'Full Name',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: loc.fullName,
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) => value == null || value.isEmpty
-                        ? 'Please enter your full name.'
+                        ? loc.enterFullName
                         : null,
                     onChanged: (value) => fullName = value.trim(),
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      hintText: 'Email Address',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: loc.emailAddress,
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
-                      if (value == null || value.isEmpty)
-                        return 'Please enter your email address.';
+                      if (value == null || value.isEmpty) {
+                        return loc.enterEmail;
+                      }
                       if (!RegExp(
                               r'^[\w-]+(\.[\w-]+)*@([\w-]+\.)+[a-zA-Z]{2,}$')
                           .hasMatch(value)) {
-                        return 'Please enter a valid email address.';
+                        return loc.invalidEmail;
                       }
                       return null;
                     },
@@ -129,16 +150,17 @@ class _RegistrationState extends State<Registration> {
                   ),
                   const SizedBox(height: 15),
                   TextFormField(
-                    decoration: const InputDecoration(
-                      hintText: 'Phone Number',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: loc.phoneNumber,
+                      border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.phone,
                     validator: (value) {
-                      if (value == null || value.isEmpty)
-                        return 'Please enter your phone number.';
+                      if (value == null || value.isEmpty) {
+                        return loc.enterPhoneNumber;
+                      }
                       if (!RegExp(r'^[97][0-9]{7}$').hasMatch(value)) {
-                        return 'Please enter a valid 8-digit phone number. starting with 9 or 7 only';
+                        return loc.invalidPhoneNumber;
                       }
                       return null;
                     },
@@ -147,29 +169,37 @@ class _RegistrationState extends State<Registration> {
                   const SizedBox(height: 15),
                   TextFormField(
                     obscureText: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Password',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: loc.password,
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a password.';
+                        return loc.enterPassword;
                       }
                       if (value.length < 6 || value.length > 20) {
-                        return 'Password must be 6-20 characters long.';
+                        return loc.passwordMinLength;
                       }
                       if (!RegExp(r'(?=.*[a-z])').hasMatch(value)) {
-                        return 'Password must contain at least one lowercase letter. ';
+                        return loc.isArabic 
+                            ? 'كلمة المرور يجب أن تحتوي على حرف صغير'
+                            : 'Password must contain at least one lowercase letter.';
                       }
                       if (!RegExp(r'(?=.*[A-Z])').hasMatch(value)) {
-                        return 'Password must contain at least one uppercase letter.';
+                        return loc.isArabic 
+                            ? 'كلمة المرور يجب أن تحتوي على حرف كبير'
+                            : 'Password must contain at least one uppercase letter.';
                       }
                       if (!RegExp(r'(?=.*\d)').hasMatch(value)) {
-                        return 'Password must contain at least one number.';
+                        return loc.isArabic 
+                            ? 'كلمة المرور يجب أن تحتوي على رقم'
+                            : 'Password must contain at least one number.';
                       }
                       if (!RegExp(r'(?=.*[!@#$%^&*(),.?":{}|<>])')
                           .hasMatch(value)) {
-                        return 'Password must contain at least one special character.';
+                        return loc.isArabic 
+                            ? 'كلمة المرور يجب أن تحتوي على رمز خاص'
+                            : 'Password must contain at least one special character.';
                       }
                       return null;
                     },
@@ -178,14 +208,19 @@ class _RegistrationState extends State<Registration> {
                   const SizedBox(height: 15),
                   TextFormField(
                     obscureText: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Confirm Password',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      hintText: loc.confirmPassword,
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
-                        return 'Please confirm your password.';
-                      if (value != password) return 'Passwords do not match.';
+                      if (value == null || value.isEmpty) {
+                        return loc.confirmPassword;
+                      }
+                      if (value != password) {
+                        return loc.isArabic 
+                            ? 'كلمات المرور غير متطابقة'
+                            : 'Passwords do not match.';
+                      }
                       return null;
                     },
                     onChanged: (value) => confirmPassword = value.trim(),
@@ -197,7 +232,7 @@ class _RegistrationState extends State<Registration> {
                       minimumSize: const Size.fromHeight(45),
                     ),
                     onPressed: _registerCustomer,
-                    child: const Text('Sign Up'),
+                    child: Text(loc.signUp),
                   ),
                   const SizedBox(height: 10),
                   TextButton(
@@ -210,7 +245,7 @@ class _RegistrationState extends State<Registration> {
                       );
                     },
                     child: Text(
-                      'Already Have an Account?',
+                      loc.haveAccount,
                       style: TextStyle(
                           color: isDarkMode ? Colors.lightBlue : Colors.blue),
                     ),

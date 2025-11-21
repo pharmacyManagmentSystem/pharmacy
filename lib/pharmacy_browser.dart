@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'models/pharmacy.dart';
 import 'pharmacy_products_page.dart';
+import 'localization/app_localizations.dart';
 
 class PharmacyBrowser extends StatefulWidget {
   const PharmacyBrowser({super.key, required this.onThemeChanged});
@@ -28,6 +29,8 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
+    
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -36,7 +39,7 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Search pharmacies...',
+              hintText: loc.searchPharmacies,
               hintStyle: TextStyle(
                   color: isDarkMode ? Colors.grey[400] : Colors.black54),
               prefixIcon: Icon(Icons.search,
@@ -70,17 +73,16 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
               stream: _pharmaciesRef.onValue,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return const Center(
-                      child: Text('Unable to load pharmacies at the moment.'));
+                  return Center(child: Text(loc.somethingWentWrong));
                 }
                 if (!snapshot.hasData ||
                     snapshot.data?.snapshot.value == null) {
-                  return const Center(child: Text('No pharmacies found.'));
+                  return Center(child: Text(loc.noPharmacies));
                 }
 
                 final raw = snapshot.data!.snapshot.value;
                 if (raw is! Map) {
-                  return const Center(child: Text('Invalid data format.'));
+                  return Center(child: Text(loc.error));
                 }
 
                 final pharmacies = raw.entries
@@ -104,8 +106,7 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
                   ..sort((a, b) => a.name.compareTo(b.name));
 
                 if (pharmacies.isEmpty) {
-                  return const Center(
-                      child: Text('No pharmacies match search.'));
+                  return Center(child: Text(loc.noResults));
                 }
 
                 return ListView.separated(
@@ -129,6 +130,8 @@ class _PharmacyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -192,7 +195,7 @@ class _PharmacyCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.shopping_basket_outlined),
-                label: const Text('Start shopping '),
+                label: Text(loc.isArabic ? 'ابدأ التسوق' : 'Start shopping'),
                 onPressed: () {
                   Navigator.push(
                     context,

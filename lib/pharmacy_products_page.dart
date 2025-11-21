@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'models/product.dart';
 import 'product_detail_page.dart';
 import 'request_product_page.dart';
+import 'localization/app_localizations.dart';
 
 class PharmacyProductsPage extends StatefulWidget {
   const PharmacyProductsPage({
@@ -72,12 +73,14 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.pharmacyName),
         actions: [
           IconButton(
-            tooltip: 'Request unavailable product',
+            tooltip: loc.requestProduct,
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: () async {
               final user = FirebaseAuth.instance.currentUser;
@@ -104,7 +107,7 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search products...',
+                hintText: loc.searchProducts,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
@@ -124,8 +127,8 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
               builder: (context, snapshot) {
                 if (!snapshot.hasData ||
                     snapshot.data?.snapshot.value == null) {
-                  return const Expanded(
-                      child: Center(child: Text('No products available.')));
+                  return Expanded(
+                      child: Center(child: Text(loc.noProducts)));
                 }
 
                 final raw = snapshot.data!.snapshot.value;
@@ -157,7 +160,9 @@ class _PharmacyProductsPageState extends State<PharmacyProductsPage> {
                   final matchCategory = _selectedCategory == 'All' ||
                       p.category == _selectedCategory;
                   final isAvailable = p.totalQuantity > 0;
-                  return matchQuery && matchCategory && isAvailable;
+                  // Hide expired products - only show products with non-expired batches
+                  final isNotExpired = p.hasNonExpiredBatches;
+                  return matchQuery && matchCategory && isAvailable && isNotExpired;
                 }).toList()
                   ..sort((a, b) => a.name.compareTo(b.name));
 

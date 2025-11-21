@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'models/product.dart';
 import 'state/customer_app_state.dart';
+import 'localization/app_localizations.dart';
 
 class ProductDetailPage extends StatefulWidget {
   const ProductDetailPage({
@@ -91,6 +92,7 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
+    final loc = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(title: Text(p.name)),
@@ -109,16 +111,16 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               style:
                   const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text('Category: ${p.category}'),
+          Text('${loc.category}: ${p.category}'),
           const SizedBox(height: 8),
           Text(
-            'Price: ${p.price.toStringAsFixed(2)} OMR',
+            '${loc.price}: ${p.price.toStringAsFixed(2)} OMR',
             style: const TextStyle(color: Colors.green, fontSize: 18),
           ),
           const SizedBox(height: 12),
           Text(p.description.isNotEmpty
               ? p.description
-              : 'No description available.'),
+              : (loc.isArabic ? 'لا يوجد وصف متاح.' : 'No description available.')),
           const SizedBox(height: 20),
           if (p.requiresPrescription)
             Column(
@@ -126,8 +128,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               children: [
                 Text(
                   _prescriptionUrl == null
-                      ? 'Prescription required.'
-                      : 'Prescription uploaded.',
+                      ? loc.prescriptionRequired
+                      : (loc.isArabic ? 'تم رفع الوصفة.' : 'Prescription uploaded.'),
                   style: TextStyle(
                     color: _prescriptionUrl == null ? Colors.red : Colors.green,
                   ),
@@ -143,8 +145,8 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                         )
                       : const Icon(Icons.upload_file),
                   label: Text(_prescriptionUrl == null
-                      ? 'Upload prescription'
-                      : 'Replace'),
+                      ? loc.uploadPrescription
+                      : (loc.isArabic ? 'استبدال' : 'Replace')),
                 ),
               ],
             ),
@@ -154,8 +156,10 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
               onPressed: () async {
                 if (p.requiresPrescription && _prescriptionUrl == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Please upload a prescription first.')),
+                    SnackBar(
+                        content: Text(loc.isArabic 
+                            ? 'يرجى رفع الوصفة الطبية أولاً.'
+                            : 'Please upload a prescription first.')),
                   );
                   return;
                 }
@@ -165,19 +169,20 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Start new cart?'),
+                      title: Text(loc.isArabic ? 'بدء سلة جديدة؟' : 'Start new cart?'),
                       content: Text(
-                        'Your current cart has items from "${state.currentPharmacyName}".\n'
-                        'Do you want to start a new cart from "${widget.pharmacyName}"?',
+                        loc.isArabic
+                            ? 'سلتك الحالية تحتوي على منتجات من "${state.currentPharmacyName}".\nهل تريد بدء سلة جديدة من "${widget.pharmacyName}"؟'
+                            : 'Your current cart has items from "${state.currentPharmacyName}".\nDo you want to start a new cart from "${widget.pharmacyName}"?',
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
+                          child: Text(loc.cancel),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Start'),
+                          child: Text(loc.isArabic ? 'ابدأ' : 'Start'),
                         ),
                       ],
                     ),
@@ -198,13 +203,13 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                   SnackBar(
                     content: Text(
                       await added
-                          ? '${p.name} added to cart'
-                          : 'Could not add product to cart.',
+                          ? (loc.isArabic ? 'تم إضافة ${p.name} إلى السلة' : '${p.name} added to cart')
+                          : (loc.isArabic ? 'تعذر إضافة المنتج إلى السلة.' : 'Could not add product to cart.'),
                     ),
                   ),
                 );
               },
-              child: const Text('Add to cart'),
+              child: Text(loc.addToCart),
             ),
           ),
         ],

@@ -2,23 +2,164 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'services/database_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'localization/app_localizations.dart';
 
-class ExpiryTrackerPage extends StatelessWidget {
+class ExpiryTrackerPage extends StatefulWidget {
   const ExpiryTrackerPage({super.key});
 
-  Future<List<_ExpiryInfo>> _loadExpiryItems() async {
+  @override
+  State<ExpiryTrackerPage> createState() => _ExpiryTrackerPageState();
+}
+
+class _ExpiryTrackerPageState extends State<ExpiryTrackerPage> {
+  bool _isCustomer = false;
+  List<_ExpiryInfo> _items = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return [];
+    if (user == null) {
+      setState(() {
+        _items = [];
+        _isLoading = false;
+      });
+      return;
+    }
 
     final pharmacistSnapshot = await DatabaseService.instance
         .ref('pharmacy/pharmacists/${user.uid}')
         .get();
 
+    List<_ExpiryInfo> items;
     if (pharmacistSnapshot.exists) {
-      return _loadPharmacistInventory(user.uid);
+      _isCustomer = false;
+      items = await _loadPharmacistInventory(user.uid);
+    } else {
+      _isCustomer = true;
+      items = await _loadCustomerOrders(user.uid);
     }
 
-    return _loadCustomerOrders(user.uid);
+    setState(() {
+      _items = items;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _markAsFinished(_ExpiryInfo item) async {
+    final loc = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+            const SizedBox(width: 10),
+            Expanded(child: Text(loc.confirmCompletion)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              loc.finishedMedicineQuestion,
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.medication, color: Colors.blue),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      item.productName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              loc.willBeRemoved,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(loc.cancel, style: const TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.check, size: 18),
+            label: Text(loc.yesDone),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Add to finished medicines list
+      await DatabaseService.instance
+          .ref('finished_medicines/${user.uid}')
+          .push()
+          .set({
+        'productName': item.productName,
+        'quantity': item.quantity,
+        'expiryDate': item.expiryDate.toIso8601String(),
+        'finishedAt': DateTime.now().toIso8601String(),
+        'orderId': item.orderId,
+        'productId': item.productId,
+      });
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(child: Text(loc.removedFromList(item.productName))),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        
+        // Reload data
+        _loadData();
+      }
+    }
   }
 
   Future<List<_ExpiryInfo>> _loadPharmacistInventory(
@@ -80,6 +221,25 @@ class ExpiryTrackerPage extends StatelessWidget {
   }
 
   Future<List<_ExpiryInfo>> _loadCustomerOrders(String customerId) async {
+    // Load finished medicines to exclude them
+    final finishedSnapshot = await DatabaseService.instance
+        .ref('finished_medicines/$customerId')
+        .get();
+    
+    final finishedSet = <String>{};
+    if (finishedSnapshot.exists && finishedSnapshot.value is Map) {
+      final finishedMap = Map<dynamic, dynamic>.from(finishedSnapshot.value as Map);
+      for (final entry in finishedMap.values) {
+        if (entry is Map) {
+          final orderId = entry['orderId']?.toString() ?? '';
+          final productId = entry['productId']?.toString() ?? '';
+          if (orderId.isNotEmpty && productId.isNotEmpty) {
+            finishedSet.add('$orderId-$productId');
+          }
+        }
+      }
+    }
+
     final snapshot =
         await DatabaseService.instance.ref('customer_orders/$customerId').get();
     if (!snapshot.exists) return [];
@@ -90,6 +250,7 @@ class ExpiryTrackerPage extends StatelessWidget {
     final items = <_ExpiryInfo>[];
 
     for (final orderEntry in root.entries) {
+      final orderId = orderEntry.key.toString();
       final orderMap = Map<dynamic, dynamic>.from(orderEntry.value as Map);
       final orderDate =
           DateTime.tryParse(orderMap['createdAt']?.toString() ?? '');
@@ -98,13 +259,17 @@ class ExpiryTrackerPage extends StatelessWidget {
       if (itemsMap == null) continue;
 
       for (final productEntry in itemsMap.entries) {
+        final productId = productEntry.key.toString();
+        
+        // Skip if already marked as finished
+        if (finishedSet.contains('$orderId-$productId')) continue;
+        
         final product = Map<dynamic, dynamic>.from(productEntry.value as Map);
         DateTime? expiry =
             DateTime.tryParse(product['expiryDate']?.toString() ?? '');
 
         if (expiry == null) {
           final ownerId = product['ownerId']?.toString() ?? '';
-          final productId = productEntry.key.toString();
           if (ownerId.isNotEmpty && productId.isNotEmpty) {
             final expirySnapshot = await DatabaseService.instance
                 .pharmacistProductsRef(ownerId)
@@ -127,6 +292,8 @@ class ExpiryTrackerPage extends StatelessWidget {
             orderDate: orderDate,
             expiryDate: expiry,
             daysRemaining: daysRemaining,
+            orderId: orderId,
+            productId: productId,
           ),
         );
       }
@@ -142,88 +309,145 @@ class ExpiryTrackerPage extends StatelessWidget {
     return Colors.green;
   }
 
-  String _statusLabel(int days, DateTime expiryDate) {
+  String _statusLabel(int days, DateTime expiryDate, AppLocalizations loc) {
     final formattedDate = DateFormat('yyyy-MM-dd').format(expiryDate);
 
-    if (days < 0) return 'Expired on $formattedDate';
-    if (days == 0) return 'Expires today ($formattedDate)';
-    if (days == 1) return 'Expires tomorrow ($formattedDate)';
-    return 'Expires in $days days ($formattedDate)';
+    if (days < 0) {
+      return loc.isArabic 
+          ? 'انتهت الصلاحية في $formattedDate' 
+          : 'Expired on $formattedDate';
+    }
+    if (days == 0) {
+      return loc.isArabic 
+          ? '${loc.expiresToday} ($formattedDate)' 
+          : 'Expires today ($formattedDate)';
+    }
+    if (days == 1) {
+      return loc.isArabic 
+          ? '${loc.expiresTomorrow} ($formattedDate)' 
+          : 'Expires tomorrow ($formattedDate)';
+    }
+    return loc.isArabic 
+        ? 'تنتهي خلال $days يوم ($formattedDate)' 
+        : 'Expires in $days days ($formattedDate)';
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
-      appBar: AppBar(title: const Text('Expiry tracker')),
-      body: FutureBuilder<List<_ExpiryInfo>>(
-        future: _loadExpiryItems(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return const Center(child: Text('Unable to load expiry data.'));
-          }
-          final items = snapshot.data ?? [];
-          if (items.isEmpty) {
-            return const Center(
-              child: Text('No products with expiry information found.'),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final color = _statusColor(item.daysRemaining);
-              return Card(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(
+        title: Text(loc.expiryTracker),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: loc.refresh,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(loc.loading),
+              ],
+            ))
+          : _items.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.medication_liquid, color: color, size: 36),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
+                      Icon(
+                        Icons.medication_outlined,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        loc.noExpiryData,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    final color = _statusColor(item.daysRemaining);
+                    return Card(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              item.productName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text('Quantity: ${item.quantity}'),
-                            if (item.orderDate != null)
-                              Text(
-                                'Purchased on: ${DateFormat('yyyy-MM-dd').format(item.orderDate!)}',
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _statusLabel(item.daysRemaining, item.expiryDate),
-                              style: TextStyle(
-                                color: color,
-                                fontWeight: FontWeight.bold,
+                            Icon(Icons.medication_liquid, color: color, size: 36),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.productName,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text('${loc.quantity}: ${item.quantity}'),
+                                  if (item.orderDate != null)
+                                    Text(
+                                      '${loc.purchasedOn}: ${DateFormat('yyyy-MM-dd').format(item.orderDate!)}',
+                                    ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _statusLabel(item.daysRemaining, item.expiryDate, loc),
+                                    style: TextStyle(
+                                      color: color,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  // Button for customers to mark as finished
+                                  if (_isCustomer) ...[
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _markAsFinished(item),
+                                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                                        label: Text(loc.markAsFinished),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.green,
+                                          side: const BorderSide(color: Colors.green),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          );
-        },
-      ),
     );
   }
 }
@@ -235,6 +459,8 @@ class _ExpiryInfo {
     required this.orderDate,
     required this.expiryDate,
     required this.daysRemaining,
+    this.orderId,
+    this.productId,
   });
 
   final String productName;
@@ -242,4 +468,6 @@ class _ExpiryInfo {
   final DateTime? orderDate;
   final DateTime expiryDate;
   final int daysRemaining;
+  final String? orderId;
+  final String? productId;
 }

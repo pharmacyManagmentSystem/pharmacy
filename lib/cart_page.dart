@@ -5,6 +5,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'state/customer_app_state.dart';
 import 'services/database_service.dart';
 import 'location_capture_page.dart';
+import 'localization/app_localizations.dart';
 
 class CustomerCartPage extends StatelessWidget {
   const CustomerCartPage({super.key});
@@ -12,6 +13,7 @@ class CustomerCartPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
     return Consumer<CustomerAppState>(
       builder: (context, state, _) {
         final items = state.cartItems;
@@ -108,9 +110,9 @@ class CustomerCartPage extends StatelessWidget {
                                             ),
                                           ),
                                           if (item.prescriptionUrl != null)
-                                            const Text(
-                                              'Prescription attached',
-                                              style: TextStyle(
+                                            Text(
+                                              loc.prescriptionAttached,
+                                              style: const TextStyle(
                                                 color: Colors.green,
                                                 fontSize: 12,
                                               ),
@@ -142,8 +144,8 @@ class CustomerCartPage extends StatelessWidget {
                                                 }
                                                 return Text(
                                                   isApproved
-                                                      ? 'Approved by pharmacist'
-                                                      : 'Pending pharmacist approval',
+                                                      ? loc.approved
+                                                      : loc.pendingApproval,
                                                   style: TextStyle(
                                                     color: isApproved
                                                         ? Colors.green
@@ -213,7 +215,7 @@ class CustomerCartPage extends StatelessWidget {
                                                       .showSnackBar(
                                                     SnackBar(
                                                       content: Text(
-                                                          'Insufficient stock. Available: ${item.product.totalQuantity}'),
+                                                          '${loc.insufficientStock}. ${loc.availableStock(item.product.totalQuantity)}'),
                                                       backgroundColor:
                                                           Colors.red,
                                                     ),
@@ -239,9 +241,9 @@ class CustomerCartPage extends StatelessWidget {
                                           child: GestureDetector(
                                             onTap: () => state
                                                 .removeItem(item.product.id),
-                                            child: const Text(
-                                              'Remove',
-                                              style: TextStyle(
+                                            child: Text(
+                                              loc.remove,
+                                              style: const TextStyle(
                                                 color: Colors.red,
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.bold,
@@ -257,28 +259,28 @@ class CustomerCartPage extends StatelessWidget {
                             );
                           },
                         )
-                      : const Center(
+                      : Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.shopping_cart_outlined,
                                 size: 64,
                                 color: Colors.grey,
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               Text(
-                                'Your cart is empty',
-                                style: TextStyle(
+                                loc.emptyCart,
+                                style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.grey,
                                 ),
                               ),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text(
-                                'Start adding medicines to continue',
-                                style: TextStyle(
+                                loc.addItemsToCart,
+                                style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey,
                                 ),
@@ -308,7 +310,7 @@ class CustomerCartPage extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Total',
+                            loc.total,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                               fontSize: 20,
@@ -341,14 +343,16 @@ class CustomerCartPage extends StatelessWidget {
                                     showDialog(
                                       context: context,
                                       builder: (_) => AlertDialog(
-                                        title: const Text('Pending Approval'),
-                                        content: const Text(
-                                            'Some items in your cart require pharmacist approval. Please wait for approval before proceeding to checkout.'),
+                                        title: Text(loc.pendingApproval),
+                                        content: Text(
+                                            loc.isArabic 
+                                              ? 'بعض العناصر في سلتك تحتاج موافقة الصيدلي. يرجى الانتظار قبل المتابعة.'
+                                              : 'Some items in your cart require pharmacist approval. Please wait for approval before proceeding to checkout.'),
                                         actions: [
                                           TextButton(
                                               onPressed: () =>
                                                   Navigator.pop(context),
-                                              child: const Text('OK')),
+                                              child: Text(loc.ok)),
                                         ],
                                       ),
                                     );
@@ -376,9 +380,9 @@ class CustomerCartPage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: const Text(
-                            'Checkout',
-                            style: TextStyle(
+                          child: Text(
+                            loc.checkout,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,

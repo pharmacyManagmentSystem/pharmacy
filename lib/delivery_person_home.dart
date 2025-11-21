@@ -6,6 +6,8 @@ import 'services/database_service.dart';
 import 'package:intl/intl.dart';
 
 import 'orderDetailsDeliveryPage.dart';
+import 'localization/app_localizations.dart';
+import 'localization/language_switcher.dart';
 
 class DeliveryPersonHome extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -79,7 +81,7 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
     return '$house, $road${additional.isNotEmpty ? ', $additional' : ''}';
   }
 
-  Widget buildOrderCard(Map<String, dynamic> order) {
+  Widget buildOrderCard(Map<String, dynamic> order, AppLocalizations loc) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final createdAt = order['createdAt'] != null
         ? DateTime.tryParse(order['createdAt'].toString())
@@ -107,7 +109,6 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       child: ListTile(
         onTap: () {
-          // عند الضغط على الطلب
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -117,26 +118,26 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
           );
         },
         title: Text(
-          order['customerName'] ?? 'Unknown',
+          order['customerName'] ?? (loc.isArabic ? 'غير معروف' : 'Unknown'),
           style: TextStyle(color: isDarkMode ? Colors.white : null),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Address: $addressText',
+              '${loc.address}: $addressText',
               style: TextStyle(color: isDarkMode ? Colors.grey[300] : null),
             ),
             Text(
-              'Total: ${order['total'] ?? '-'}',
+              '${loc.total}: ${order['total'] ?? '-'}',
               style: TextStyle(color: isDarkMode ? Colors.grey[300] : null),
             ),
             Text(
-              'Payment: ${order['paymentMethod'] ?? '-'}',
+              '${loc.paymentMethod}: ${order['paymentMethod'] ?? '-'}',
               style: TextStyle(color: isDarkMode ? Colors.grey[300] : null),
             ),
             Text(
-              'Created at: $formattedDate',
+              '${loc.orderDate}: $formattedDate',
               style: TextStyle(color: isDarkMode ? Colors.grey[300] : null),
             ),
           ],
@@ -149,15 +150,19 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
       backgroundColor: isDarkMode ? Colors.grey[900] : null,
       appBar: AppBar(
         backgroundColor:
             isDarkMode ? Colors.grey[850] : const Color(0xFF0288D1),
-        title: const Text("Delivery Person Home"),
+        title: Text(loc.myDeliveries),
         actions: [
+          const LanguageSwitcher(),
           IconButton(
             icon: const Icon(Icons.person),
+            tooltip: loc.profile,
             onPressed: () {
               Navigator.push(
                 context,
@@ -171,6 +176,7 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: loc.logout,
             onPressed: () {
               Navigator.pushReplacement(
                 context,
@@ -184,20 +190,34 @@ class _DeliveryPersonHomeState extends State<DeliveryPersonHome> {
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(loc.loading),
+              ],
+            ))
           : acceptedOrders.isEmpty
               ? Center(
-                  child: Text(
-                    'No accepted orders',
-                    style: TextStyle(
-                        color: isDarkMode ? Colors.white : Colors.black),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.local_shipping_outlined, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        loc.noDeliveries,
+                        style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black),
+                      ),
+                    ],
                   ),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   itemCount: acceptedOrders.length,
                   itemBuilder: (context, index) {
-                    return buildOrderCard(acceptedOrders[index]);
+                    return buildOrderCard(acceptedOrders[index], loc);
                   },
                 ),
     );

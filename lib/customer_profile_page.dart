@@ -8,6 +8,8 @@ import 'notification_settings_page.dart';
 import 'services/database_service.dart';
 import 'widgets/order_card.dart';
 import 'state/customer_app_state.dart';
+import 'localization/app_localizations.dart';
+import 'localization/language_switcher.dart';
 
 class CustomerProfilePage extends StatefulWidget {
   const CustomerProfilePage({super.key, required this.onThemeChanged});
@@ -34,6 +36,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   void _showChangePasswordDialog() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    final loc = AppLocalizations.of(context)!;
 
     final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -43,27 +46,26 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Change Password'),
+          title: Text(loc.isArabic ? 'تغيير كلمة المرور' : 'Change Password'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: oldPasswordController,
-                  decoration: const InputDecoration(labelText: 'Old Password'),
+                  decoration: InputDecoration(labelText: loc.currentPassword),
                   obscureText: true,
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: newPasswordController,
-                  decoration: const InputDecoration(labelText: 'New Password'),
+                  decoration: InputDecoration(labelText: loc.newPassword),
                   obscureText: true,
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: confirmPasswordController,
-                  decoration:
-                      const InputDecoration(labelText: 'Repeat New Password'),
+                  decoration: InputDecoration(labelText: loc.confirmPassword),
                   obscureText: true,
                 ),
               ],
@@ -72,7 +74,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(loc.cancel),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -82,7 +84,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
                 if (newPassword != confirmPassword) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('New passwords do not match')),
+                    SnackBar(content: Text(loc.isArabic 
+                        ? 'كلمات المرور الجديدة غير متطابقة' 
+                        : 'New passwords do not match')),
                   );
                   return;
                 }
@@ -91,9 +95,10 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
                 if (!passwordRegex.hasMatch(newPassword)) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Password must be at least 6 characters, include upper & lower case letters, a number, and a special character'),
+                    SnackBar(
+                      content: Text(loc.isArabic
+                          ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل، تحتوي على أحرف كبيرة وصغيرة ورقم ورمز خاص'
+                          : 'Password must be at least 6 characters, include upper & lower case letters, a number, and a special character'),
                     ),
                   );
                   return;
@@ -109,23 +114,29 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                   await user.updatePassword(newPassword);
 
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Password changed successfully')),
+                    SnackBar(
+                        content: Text(loc.isArabic 
+                            ? 'تم تغيير كلمة المرور بنجاح' 
+                            : 'Password changed successfully')),
                   );
                   Navigator.pop(context);
                 } on FirebaseAuthException catch (e) {
-                  String message = 'Failed to change password.';
+                  String message = loc.isArabic 
+                      ? 'فشل تغيير كلمة المرور.' 
+                      : 'Failed to change password.';
                   if (e.code == 'wrong-password') {
-                    message = 'Old password is incorrect.';
+                    message = loc.isArabic 
+                        ? 'كلمة المرور القديمة غير صحيحة.' 
+                        : 'Old password is incorrect.';
                   }
                   ScaffoldMessenger.of(context)
                       .showSnackBar(SnackBar(content: Text(message)));
                 } catch (e) {
                   ScaffoldMessenger.of(context)
-                      .showSnackBar(SnackBar(content: Text('Error: $e')));
+                      .showSnackBar(SnackBar(content: Text('${loc.error}: $e')));
                 }
               },
-              child: const Text('Change Password'),
+              child: Text(loc.isArabic ? 'تغيير كلمة المرور' : 'Change Password'),
             ),
           ],
         );
@@ -176,6 +187,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   Future<void> _editProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    final loc = AppLocalizations.of(context)!;
 
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: _name);
@@ -215,7 +227,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Update your details',
+                      loc.isArabic ? 'تحديث معلوماتك' : 'Update your details',
                       style: Theme.of(context)
                           .textTheme
                           .titleMedium
@@ -224,10 +236,10 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Full name'),
+                      decoration: InputDecoration(labelText: loc.fullName),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your name';
+                          return loc.isArabic ? 'يرجى إدخال اسمك' : 'Please enter your name';
                         }
                         return null;
                       },
@@ -235,15 +247,14 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: phoneController,
-                      decoration:
-                          const InputDecoration(labelText: 'Phone number'),
+                      decoration: InputDecoration(labelText: loc.phoneNumber),
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: addressController,
-                      decoration: const InputDecoration(
-                          labelText: 'Address (optional)'),
+                      decoration: InputDecoration(
+                          labelText: '${loc.address} (${loc.optional})'),
                       maxLines: 2,
                     ),
                     const SizedBox(height: 24),
@@ -252,7 +263,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
+                          child: Text(loc.cancel),
                         ),
                         const SizedBox(width: 12),
                         FilledButton(
@@ -261,7 +272,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                               Navigator.pop(context, true);
                             }
                           },
-                          child: const Text('Save changes'),
+                          child: Text(loc.saveChanges),
                         ),
                       ],
                     ),
@@ -294,20 +305,29 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully.')),
+        SnackBar(content: Text(loc.profileUpdated)),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update profile: $e')),
+        SnackBar(content: Text('${loc.operationFailed}: $e')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(loc.loading),
+        ],
+      ));
     }
 
     final appState = context.watch<CustomerAppState>();
@@ -326,7 +346,13 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             onEditTap: _editProfile,
           ),
           const SizedBox(height: 24),
-          const _SectionTitle('Preferences'),
+          // Language Switcher
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: const LanguageSettingsTile(),
+          ),
+          const SizedBox(height: 24),
+          _SectionTitle(loc.isArabic ? 'التفضيلات' : 'Preferences'),
           Card(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -344,20 +370,21 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                           .update({'darkMode': value});
                     }
                   },
-                  title: const Text('Dark mode'),
+                  title: Text(loc.darkMode),
                   subtitle: Text(
                     _darkMode
-                        ? 'App is currently using the dark theme.'
-                        : 'Tap to switch to the dark theme.',
+                        ? (loc.isArabic ? 'التطبيق يستخدم الوضع الداكن حالياً.' : 'App is currently using the dark theme.')
+                        : (loc.isArabic ? 'اضغط للتبديل للوضع الداكن.' : 'Tap to switch to the dark theme.'),
                   ),
                   secondary: const Icon(Icons.dark_mode_outlined),
                 ),
                 const Divider(height: 0),
                 ListTile(
                   leading: const Icon(Icons.notifications_active_outlined),
-                  title: const Text('Customize notifications'),
-                  subtitle:
-                      const Text('Choose how pharmacists reach out to you.'),
+                  title: Text(loc.notificationSettings),
+                  subtitle: Text(loc.isArabic 
+                      ? 'اختر كيف يتواصل معك الصيادلة.' 
+                      : 'Choose how pharmacists reach out to you.'),
                   onTap: () async {
                     final updated =
                         await Navigator.push<NotificationPreferences>(
@@ -377,11 +404,11 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             ),
           ),
           const SizedBox(height: 24),
-          const _SectionTitle('Quick actions'),
+          _SectionTitle(loc.isArabic ? 'إجراءات سريعة' : 'Quick actions'),
           _ActionCard(
             icon: Icons.calendar_month_outlined,
-            title: 'Check soon expiry dates',
-            subtitle: 'Review items that are about to expire.',
+            title: loc.isArabic ? 'تواريخ الانتهاء القريبة' : 'Check soon expiry dates',
+            subtitle: loc.isArabic ? 'مراجعة الأدوية التي توشك على الانتهاء.' : 'Review items that are about to expire.',
             onTap: () {
               Navigator.push(
                 context,
@@ -392,8 +419,8 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           const SizedBox(height: 12),
           _ActionCard(
             icon: Icons.local_shipping_outlined,
-            title: 'Track orders',
-            subtitle: 'See the status of your recent orders.',
+            title: loc.trackOrder,
+            subtitle: loc.isArabic ? 'شاهد حالة طلباتك الأخيرة.' : 'See the status of your recent orders.',
             onTap: () {
               Navigator.push(
                 context,
@@ -404,7 +431,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: _showChangePasswordDialog,
-            child: const Text("Change Password"),
+            child: Text(loc.isArabic ? 'تغيير كلمة المرور' : 'Change Password'),
           ),
         ],
       ),
@@ -603,29 +630,36 @@ class OrdersHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please sign in to view your orders.')),
+      return Scaffold(
+        body: Center(child: Text(loc.sessionExpired)),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Order history')),
+      appBar: AppBar(title: Text(loc.orderHistory)),
       body: StreamBuilder<List<CustomerOrder>>(
         stream: _ordersStream(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(loc.loading),
+              ],
+            ));
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Unable to load orders.'));
+            return Center(child: Text(loc.somethingWentWrong));
           }
 
           final orders = snapshot.data ?? [];
           if (orders.isEmpty) {
-            return const Center(
-                child: Text('You have not placed any orders yet.'));
+            return Center(child: Text(loc.noOrders));
           }
 
           return ListView.separated(

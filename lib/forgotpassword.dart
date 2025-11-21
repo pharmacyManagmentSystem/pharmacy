@@ -2,6 +2,8 @@ import 'services/database_service.dart';
 import "package:flutter/material.dart";
 import "package:firebase_auth/firebase_auth.dart";
 import "package:firebase_database/firebase_database.dart";
+import 'localization/app_localizations.dart';
+import 'localization/language_switcher.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -22,6 +24,9 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
     'Delivery Person',
     'Admin'
   ];
+
+  static const String _resetPasswordUrl = 
+      'https://pharm-e6550.web.app/reset-password.html';
 
   Future<void> resetPassword() async {
     if (!formKey.currentState!.validate()) return;
@@ -69,7 +74,16 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
         return;
       }
 
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      // ActionCodeSettings for custom reset password page
+      final actionCodeSettings = ActionCodeSettings(
+        url: _resetPasswordUrl,
+        handleCodeInApp: false, // Reset happens in web page, not in Flutter app
+      );
+
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: email,
+        actionCodeSettings: actionCodeSettings,
+      );
 
       if (!mounted) return;
 
@@ -97,8 +111,25 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
+  String _getLocalizedRole(AppLocalizations loc, String role) {
+    switch (role) {
+      case 'Customer':
+        return loc.customer;
+      case 'Pharmacist':
+        return loc.pharmacist;
+      case 'Delivery Person':
+        return loc.deliveryPerson;
+      case 'Admin':
+        return loc.admin;
+      default:
+        return role;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFB2F0F6),
       body: Padding(
@@ -108,15 +139,30 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Language Switcher
+              Align(
+                alignment: Alignment.topRight,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: LanguageToggleButton(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               Image.asset(
                 'assets/pharmacy_icon.png',
                 width: 150,
                 height: 150,
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Reset Password',
-                style: TextStyle(
+              Text(
+                loc.resetPassword,
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
@@ -130,42 +176,50 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     selectedRole = value!;
                   });
                 },
-                decoration: const InputDecoration(
-                  labelText: 'Select Your Role',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: loc.selectRole,
+                  border: const OutlineInputBorder(),
                 ),
                 items: roles
-                    .map((role) =>
-                        DropdownMenuItem(value: role, child: Text(role)))
+                    .map((role) => DropdownMenuItem(
+                        value: role, child: Text(_getLocalizedRole(loc, role))))
                     .toList(),
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Enter your email to receive password reset link',
-                style: TextStyle(fontSize: 16),
+              Text(
+                loc.isArabic 
+                    ? 'أدخل بريدك الإلكتروني لاستلام رابط إعادة تعيين كلمة المرور'
+                    : 'Enter your email to receive password reset link',
+                style: const TextStyle(fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: loc.email,
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter your email';
+                    return loc.enterEmail;
                   }
                   if (!value.contains('@')) {
-                    return 'Please enter a valid email';
+                    return loc.invalidEmail;
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 20),
               if (loading)
-                const CircularProgressIndicator()
+                Column(
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(loc.pleaseWait),
+                  ],
+                )
               else
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -179,9 +233,9 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
-                        'Send Reset Email',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      child: Text(
+                        loc.sendResetEmail,
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -197,9 +251,9 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      child: Text(
+                        loc.cancel,
+                        style: const TextStyle(fontSize: 16, color: Colors.white),
                       ),
                     ),
                   ],

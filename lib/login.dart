@@ -9,6 +9,8 @@ import "delivery_person_home.dart";
 import "forgotpassword.dart";
 import "pharmacist_home.dart";
 import "registration.dart";
+import 'localization/app_localizations.dart';
+import 'localization/language_switcher.dart';
 
 class Login extends StatefulWidget {
   final Function(bool) onThemeChanged;
@@ -178,9 +180,26 @@ class _LoginState extends State<Login> {
     );
   }
 
+  String _getLocalizedRole(AppLocalizations loc, String role) {
+    switch (role) {
+      case 'Customer':
+        return loc.customer;
+      case 'Pharmacist':
+        return loc.pharmacist;
+      case 'Delivery Person':
+        return loc.deliveryPerson;
+      case 'Admin':
+        return loc.admin;
+      default:
+        return role;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final loc = AppLocalizations.of(context)!;
+    
     return Scaffold(
       backgroundColor: isDarkMode ? Colors.grey[900] : const Color(0xFFB2F0F6),
       body: SafeArea(
@@ -189,10 +208,32 @@ class _LoginState extends State<Login> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Language Switcher at the top
+              Align(
+                alignment: Alignment.topRight,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? Colors.grey[800] : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: LanguageToggleButton(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               Image.asset('assets/pharmacy_icon.png', width: 150, height: 150),
               const SizedBox(height: 16),
               Text(
-                'Sign In',
+                loc.login,
                 style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -206,30 +247,31 @@ class _LoginState extends State<Login> {
                     selectedRole = value!;
                   });
                 },
-                decoration:
-                    const InputDecoration(labelText: 'Select Your Role'),
+                decoration: InputDecoration(labelText: loc.selectRole),
                 items: roles
                     .map(
-                      (role) =>
-                          DropdownMenuItem(value: role, child: Text(role)),
+                      (role) => DropdownMenuItem(
+                        value: role,
+                        child: Text(_getLocalizedRole(loc, role)),
+                      ),
                     )
                     .toList(),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: loc.email,
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: loc.password,
+                  border: const OutlineInputBorder(),
                 ),
                 obscureText: true,
               ),
@@ -240,7 +282,7 @@ class _LoginState extends State<Login> {
                   backgroundColor: Colors.blue,
                   minimumSize: const Size(double.infinity, 50),
                 ),
-                child: const Text('Sign In', style: TextStyle(fontSize: 18)),
+                child: Text(loc.login, style: const TextStyle(fontSize: 18)),
               ),
               const SizedBox(height: 16),
               TextButton(
@@ -252,7 +294,7 @@ class _LoginState extends State<Login> {
                     ),
                   );
                 },
-                child: Text('Forgot Password?',
+                child: Text(loc.forgotPassword,
                     style: TextStyle(
                         color: isDarkMode ? Colors.lightBlue : Colors.blue)),
               ),
@@ -267,7 +309,7 @@ class _LoginState extends State<Login> {
                       ),
                     );
                   },
-                  child: Text("Didn't Have an account yet?",
+                  child: Text(loc.isArabic ? 'ليس لديك حساب؟ سجل الآن' : "Don't have an account? Register",
                       style: TextStyle(
                           color: isDarkMode ? Colors.lightBlue : Colors.blue)),
                 ),
