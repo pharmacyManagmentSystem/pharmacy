@@ -7,10 +7,12 @@ class CustomizeNotificationsPage extends StatefulWidget {
   const CustomizeNotificationsPage({super.key});
 
   @override
-  State<CustomizeNotificationsPage> createState() => _CustomizeNotificationsPageState();
+  State<CustomizeNotificationsPage> createState() =>
+      _CustomizeNotificationsPageState();
 }
 
-class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage> {
+class _CustomizeNotificationsPageState
+    extends State<CustomizeNotificationsPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = DatabaseService.instance.database;
 
@@ -26,6 +28,7 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
 
   DatabaseReference get _modernRef =>
       _database.ref('pharmacy_notifications/${pharmacistId ?? ''}');
+
   DatabaseReference get _legacyCollectionRef =>
       _database.ref('pharmacy/notifications');
 
@@ -42,20 +45,19 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
 
   Future<void> _loadSettings() async {
     try {
-      // Prefer the dedicated per-pharmacist node
       final modernSnapshot = await _modernRef.get();
       if (modernSnapshot.exists) {
         _applySnapshot(modernSnapshot.value);
         return;
       }
 
-      // Fallback to legacy list (older versions stored everything under one list)
       final legacySnapshot = await _legacyCollectionRef.get();
       if (legacySnapshot.exists && legacySnapshot.value is Map) {
         final entries = Map<dynamic, dynamic>.from(legacySnapshot.value as Map);
         for (final entry in entries.entries) {
           final value = entry.value;
-          if (value is Map && value['pharmacistId']?.toString() == pharmacistId) {
+          if (value is Map &&
+              value['pharmacistId']?.toString() == pharmacistId) {
             _applySnapshot(value);
             break;
           }
@@ -73,7 +75,8 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
     setState(() {
       newProductRequest = (raw['newProductRequest'] ?? false) as bool;
       productExpirySoon = (raw['productExpirySoon'] ?? false) as bool;
-      newPrescriptionsUploaded = (raw['newPrescriptionsUploaded'] ?? false) as bool;
+      newPrescriptionsUploaded =
+          (raw['newPrescriptionsUploaded'] ?? false) as bool;
       byEmail = (raw['byEmail'] ?? false) as bool;
       inApp = (raw['inApp'] ?? false) as bool;
     });
@@ -96,13 +99,13 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
     try {
       await _modernRef.set(payload);
 
-      // Clean up any legacy entries for this pharmacist
       final legacySnapshot = await _legacyCollectionRef.get();
       if (legacySnapshot.exists && legacySnapshot.value is Map) {
         final entries = Map<dynamic, dynamic>.from(legacySnapshot.value as Map);
         for (final entry in entries.entries) {
           final value = entry.value;
-          if (value is Map && value['pharmacistId']?.toString() == pharmacistId) {
+          if (value is Map &&
+              value['pharmacistId']?.toString() == pharmacistId) {
             await _legacyCollectionRef.child(entry.key.toString()).remove();
           }
         }
@@ -118,9 +121,7 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
         SnackBar(content: Text('Failed to save settings: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -189,12 +190,14 @@ class _CustomizeNotificationsPageState extends State<CustomizeNotificationsPage>
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: _saving ? null : _saveSettings,
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 50)),
                       child: _saving
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
                             )
                           : const Text('Save Changes'),
                     ),

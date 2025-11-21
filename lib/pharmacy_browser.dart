@@ -15,7 +15,7 @@ class PharmacyBrowser extends StatefulWidget {
 
 class _PharmacyBrowserState extends State<PharmacyBrowser> {
   final DatabaseReference _pharmaciesRef =
-  DatabaseService.instance.ref('pharmacy/pharmacists');
+      DatabaseService.instance.ref('pharmacy/pharmacists');
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
@@ -27,6 +27,7 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -36,26 +37,31 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search pharmacies...',
-              hintStyle: const TextStyle(color: Colors.black),
-              prefixIcon: const Icon(Icons.search,color: Colors.black54),
+              hintStyle: TextStyle(
+                  color: isDarkMode ? Colors.grey[400] : Colors.black54),
+              prefixIcon: Icon(Icons.search,
+                  color: isDarkMode ? Colors.grey[400] : Colors.black54),
               suffixIcon: _query.isNotEmpty
                   ? IconButton(
-                onPressed: () {
-                  _searchController.clear();
-                  setState(() => _query = '');
-                },
-                icon: const Icon(Icons.clear,color: Colors.black54),
-              )
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                      icon: Icon(Icons.clear,
+                          color:
+                              isDarkMode ? Colors.grey[400] : Colors.black54),
+                    )
                   : null,
               filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              fillColor: isDarkMode ? Colors.grey[800] : Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
             ),
-            style: const TextStyle(color: Colors.black),
+            style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
             onChanged: (value) => setState(() => _query = value.trim()),
           ),
           const SizedBox(height: 16),
@@ -80,23 +86,26 @@ class _PharmacyBrowserState extends State<PharmacyBrowser> {
                 final pharmacies = raw.entries
                     .map(
                       (entry) => PharmacySummary.fromMap(
-                    entry.key.toString(),
-                    Map<dynamic, dynamic>.from(entry.value as Map),
-                  ),
-                )
+                        entry.key.toString(),
+                        Map<dynamic, dynamic>.from(entry.value as Map),
+                      ),
+                    )
                     .where(
                       (p) => _query.isEmpty
-                      ? true
-                      : p.name.toLowerCase().contains(_query.toLowerCase()) ||
-                      p.email
-                          .toLowerCase()
-                          .contains(_query.toLowerCase()),
-                )
+                          ? true
+                          : p.name
+                                  .toLowerCase()
+                                  .contains(_query.toLowerCase()) ||
+                              p.email
+                                  .toLowerCase()
+                                  .contains(_query.toLowerCase()),
+                    )
                     .toList()
                   ..sort((a, b) => a.name.compareTo(b.name));
 
                 if (pharmacies.isEmpty) {
-                  return const Center(child: Text('No pharmacies match search.'));
+                  return const Center(
+                      child: Text('No pharmacies match search.'));
                 }
 
                 return ListView.separated(
@@ -130,32 +139,49 @@ class _PharmacyCard extends StatelessWidget {
           children: [
             Row(
               children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: Colors.blue.shade100,
-          backgroundImage: pharmacy.imageUrl.isNotEmpty
-            ? (pharmacy.imageUrl.startsWith('data:')
-              ? MemoryImage(base64Decode(pharmacy.imageUrl.split(',').length > 1 ? pharmacy.imageUrl.split(',')[1] : ''))
-              : NetworkImage(pharmacy.imageUrl)) as ImageProvider
-            : null,
-          child: pharmacy.imageUrl.isEmpty
-            ? const Icon(Icons.local_pharmacy,
-              size: 30, color: Colors.blue)
-            : null,
-        ),
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.blue.shade100,
+                  backgroundImage: pharmacy.imageUrl.isNotEmpty
+                      ? (pharmacy.imageUrl.startsWith('data:')
+                          ? MemoryImage(base64Decode(
+                              pharmacy.imageUrl.split(',').length > 1
+                                  ? pharmacy.imageUrl.split(',')[1]
+                                  : ''))
+                          : NetworkImage(pharmacy.imageUrl)) as ImageProvider
+                      : null,
+                  child: pharmacy.imageUrl.isEmpty
+                      ? const Icon(Icons.local_pharmacy,
+                          size: 30, color: Colors.blue)
+                      : null,
+                ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(pharmacy.name,
-                          style: const TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.color)),
                       const SizedBox(height: 4),
-                      Text(pharmacy.email),
+                      Text(pharmacy.email,
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color)),
                       if (pharmacy.address.isNotEmpty)
                         Text(pharmacy.address,
-                            style: const TextStyle(color: Colors.black54)),
+                            style: TextStyle(
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color)),
                     ],
                   ),
                 ),
@@ -166,7 +192,7 @@ class _PharmacyCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.shopping_basket_outlined),
-                label: const Text('Start shopping'),
+                label: const Text('Start shopping '),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -174,7 +200,7 @@ class _PharmacyCard extends StatelessWidget {
                       builder: (context) => PharmacyProductsPage(
                         pharmacyId: pharmacy.uid,
                         pharmacyName: pharmacy.name,
-                        pharmacyEmail: pharmacy.email ?? '',
+                        pharmacyEmail: pharmacy.email,
                       ),
                     ),
                   );

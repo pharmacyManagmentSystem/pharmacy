@@ -1,6 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
 
-/// Central access point for all Firebase Realtime Database interactions.
 class DatabaseService {
   DatabaseService._();
 
@@ -52,14 +51,22 @@ class DatabaseService {
   DatabaseReference notificationSettingsRef(String userId) =>
       _database.ref('notification_settings/$userId');
 
+  DatabaseReference customerNotificationsRef(String userId) =>
+      _database.ref('notifications/$userId');
+
+  DatabaseReference pharmacyNotificationsRef(String pharmacyId) =>
+      _database.ref('pharmacy_notifications/$pharmacyId');
+
+  DatabaseReference pendingPrescriptionsRef(String pharmacyId) =>
+      _database.ref('pending_prescriptions/$pharmacyId');
+
   DatabaseReference expiryTrackerRef(String pharmacistId) =>
       _database.ref('products/$pharmacistId');
 
   Future<DataSnapshot> fetchOnce(DatabaseReference reference) =>
       reference.get();
 
-  Stream<DatabaseEvent> watch(DatabaseReference reference) =>
-      reference.onValue;
+  Stream<DatabaseEvent> watch(DatabaseReference reference) => reference.onValue;
 
   String generatePushKey(DatabaseReference reference) {
     final key = reference.push().key;
@@ -82,5 +89,3 @@ class DatabaseService {
   Future<void> clearCustomerCart(String customerId) =>
       customerCartRef(customerId).remove();
 }
-
-

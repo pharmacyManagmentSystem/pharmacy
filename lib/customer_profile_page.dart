@@ -31,7 +31,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
     _loadProfile();
   }
 
-
   void _showChangePasswordDialog() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -63,7 +62,8 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: confirmPasswordController,
-                  decoration: const InputDecoration(labelText: 'Repeat New Password'),
+                  decoration:
+                      const InputDecoration(labelText: 'Repeat New Password'),
                   obscureText: true,
                 ),
               ],
@@ -80,7 +80,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 final newPassword = newPasswordController.text.trim();
                 final confirmPassword = confirmPasswordController.text.trim();
 
-                // Check if new password matches confirm password
                 if (newPassword != confirmPassword) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('New passwords do not match')),
@@ -88,9 +87,8 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                   return;
                 }
 
-                // Strong password validation
                 final passwordRegex =
-                RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
+                    RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
                 if (!passwordRegex.hasMatch(newPassword)) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -102,18 +100,17 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 }
 
                 try {
-                  // Re-authenticate user
                   final credential = EmailAuthProvider.credential(
                     email: user.email!,
                     password: oldPassword,
                   );
                   await user.reauthenticateWithCredential(credential);
 
-                  // Update password
                   await user.updatePassword(newPassword);
 
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully')),
+                    const SnackBar(
+                        content: Text('Password changed successfully')),
                   );
                   Navigator.pop(context);
                 } on FirebaseAuthException catch (e) {
@@ -135,7 +132,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       },
     );
   }
-
 
   Future<void> _loadProfile() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -163,6 +159,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           _darkMode = data['darkMode'] ?? false;
           _loading = false;
         });
+        widget.onThemeChanged(_darkMode);
       } else {
         setState(() {
           _name = 'Customer';
@@ -172,9 +169,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -240,13 +235,15 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: phoneController,
-                      decoration: const InputDecoration(labelText: 'Phone number'),
+                      decoration:
+                          const InputDecoration(labelText: 'Phone number'),
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: addressController,
-                      decoration: const InputDecoration(labelText: 'Address (optional)'),
+                      decoration: const InputDecoration(
+                          labelText: 'Address (optional)'),
                       maxLines: 2,
                     ),
                     const SizedBox(height: 24),
@@ -331,15 +328,15 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           const SizedBox(height: 24),
           const _SectionTitle('Preferences'),
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 SwitchListTile.adaptive(
                   value: _darkMode,
                   onChanged: (value) async {
                     setState(() => _darkMode = value);
-                    widget.onThemeChanged(value); // notify app
-
+                    widget.onThemeChanged(value);
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       await DatabaseService.instance
@@ -359,9 +356,11 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 ListTile(
                   leading: const Icon(Icons.notifications_active_outlined),
                   title: const Text('Customize notifications'),
-                  subtitle: const Text('Choose how pharmacists reach out to you.'),
+                  subtitle:
+                      const Text('Choose how pharmacists reach out to you.'),
                   onTap: () async {
-                    final updated = await Navigator.push<NotificationPreferences>(
+                    final updated =
+                        await Navigator.push<NotificationPreferences>(
                       context,
                       MaterialPageRoute(
                         builder: (_) => NotificationSettingsPage(
@@ -402,7 +401,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
               );
             },
           ),
-
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: _showChangePasswordDialog,
@@ -445,7 +443,7 @@ class _ProfileHeader extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 36,
-                  backgroundColor: Colors.blue ,
+                  backgroundColor: Colors.blue,
                   child: Icon(
                     Icons.person_outline,
                     size: 40,
@@ -476,7 +474,8 @@ class _ProfileHeader extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.location_pin, size: 18, color: theme.colorScheme.primary),
+                              Icon(Icons.location_pin,
+                                  size: 18, color: theme.colorScheme.primary),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -495,7 +494,6 @@ class _ProfileHeader extends StatelessWidget {
                   tooltip: 'Edit profile',
                   icon: const Icon(Icons.edit_outlined),
                 ),
-
               ],
             ),
           ],
@@ -626,7 +624,8 @@ class OrdersHistoryPage extends StatelessWidget {
 
           final orders = snapshot.data ?? [];
           if (orders.isEmpty) {
-            return const Center(child: Text('You have not placed any orders yet.'));
+            return const Center(
+                child: Text('You have not placed any orders yet.'));
           }
 
           return ListView.separated(
@@ -643,9 +642,3 @@ class OrdersHistoryPage extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

@@ -26,7 +26,12 @@ class _LoginState extends State<Login> {
   final TextEditingController passwordController = TextEditingController();
 
   String selectedRole = 'Customer';
-  final List<String> roles = ['Customer', 'Pharmacist', 'Delivery Person', 'Admin'];
+  final List<String> roles = [
+    'Customer',
+    'Pharmacist',
+    'Delivery Person',
+    'Admin'
+  ];
 
   Future<void> loginUser() async {
     final email = emailController.text.trim().toLowerCase();
@@ -53,71 +58,115 @@ class _LoginState extends State<Login> {
 
       late final String path;
       switch (selectedRole) {
+        case 'Customer':
+          path = 'pharmacy/customers/${user.uid}';
+          break;
         case 'Pharmacist':
-          path = 'pharmacists';
+          path = 'pharmacy/pharmacists/${user.uid}';
           break;
         case 'Delivery Person':
-          path = 'delivery_persons';
-          break;
-        case 'Customer':
-          path = 'customers';
+          path = 'pharmacy/delivery_persons/${user.uid}';
           break;
         case 'Admin':
-          path = 'admins';
+          path = 'pharmacy/admins/${user.uid}';
           break;
         default:
           showMessage('Invalid role selected');
           return;
       }
 
-      final snapshot = await dbRef
-          .child('pharmacy/$path')
-          .orderByChild('email')
-          .equalTo(email)
-          .get();
+      final snapshot = await dbRef.child(path).get();
+
+      if (!snapshot.exists) {
+        if (selectedRole == 'Admin') {
+          // للـ Admin، إذا لم يوجد السجل، ننشئه ونسمح بالدخول
+          try {
+            await dbRef.child(path).set({
+              'email': user.email ?? '',
+              'createdAt': DateTime.now().toIso8601String(),
+              'role': 'admin',
+            });
+          } catch (e) {
+            debugPrint('Error creating admin record: $e');
+            // حتى لو فشل إنشاء السجل، نسمح بالدخول للـ Admin
+          }
+          // للـ Admin نسمح بالدخول حتى لو لم يكن موجود في قاعدة البيانات
+        } else {
+          await _auth.signOut();
+          if (!mounted) return;
+          showMessage(
+              'User does not exist for the selected role. Please check your role selection.');
+          debugPrint('Checking path: $path');
+          debugPrint('User UID: ${user.uid}');
+          return;
+        }
+      }
 
       if (!mounted) return;
 
-      if (snapshot.exists) {
-        late final Widget destination;
-        switch (selectedRole) {
-          case 'Pharmacist':
-            destination = PharmacistHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
-            break;
-          case 'Delivery Person':
-            destination = DeliveryPersonHome(onThemeChanged: widget.onThemeChanged,isDarkMode: false,);
-            break;
-          case 'Customer':
-            destination = CustomerHome(
-              onThemeChanged: widget.onThemeChanged,
-              onLogout: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => Login(onThemeChanged: widget.onThemeChanged),
-                  ),
-                  (_) => false,
-                );
-              },
-            );
-            break;
-          case 'Admin':
-            destination = AdminHome(onThemeChanged: widget.onThemeChanged);
-            break;
-          default:
-            destination = Login(onThemeChanged: widget.onThemeChanged);
-        }
-
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => destination),
-        );
-      } else {
-        showMessage('No user data found for this role with this email');
+      switch (selectedRole) {
+        case 'Customer':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CustomerHome(
+                onThemeChanged: widget.onThemeChanged,
+                onLogout: () {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          Login(onThemeChanged: widget.onThemeChanged),
+                    ),
+                    (_) => false,
+                  );
+                },
+              ),
+            ),
+          );
+          break;
+        case 'Pharmacist':
+          final pharmacistSnapshot =
+              await dbRef.child('pharmacy/pharmacists/${user.uid}').get();
+          final pharmacistData = pharmacistSnapshot.value as Map?;
+          final isDarkMode = pharmacistData?['darkMode'] == true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PharmacistHome(
+                onThemeChanged: widget.onThemeChanged,
+                isDarkMode: isDarkMode,
+              ),
+            ),
+          );
+          break;
+        case 'Delivery Person':
+          final deliverySnapshot =
+              await dbRef.child('pharmacy/delivery_persons/${user.uid}').get();
+          final deliveryData = deliverySnapshot.value as Map?;
+          final isDarkMode = deliveryData?['darkMode'] == true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DeliveryPersonHome(
+                onThemeChanged: widget.onThemeChanged,
+                isDarkMode: isDarkMode,
+              ),
+            ),
+          );
+          break;
+        case 'Admin':
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  AdminHome(onThemeChanged: widget.onThemeChanged),
+            ),
+          );
+          break;
       }
     } catch (e) {
+      if (!mounted) return;
       showMessage('Login failed: ${e.toString()}');
     }
   }
@@ -131,8 +180,9 @@ class _LoginState extends State<Login> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFB2F0F6),
+      backgroundColor: isDarkMode ? Colors.grey[900] : const Color(0xFFB2F0F6),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -141,9 +191,12 @@ class _LoginState extends State<Login> {
             children: [
               Image.asset('assets/pharmacy_icon.png', width: 150, height: 150),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Sign In',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black),
               ),
               const SizedBox(height: 32),
               DropdownButtonFormField<String>(
@@ -153,10 +206,12 @@ class _LoginState extends State<Login> {
                     selectedRole = value!;
                   });
                 },
-                decoration: const InputDecoration(labelText: 'Select Your Role'),
+                decoration:
+                    const InputDecoration(labelText: 'Select Your Role'),
                 items: roles
                     .map(
-                      (role) => DropdownMenuItem(value: role, child: Text(role)),
+                      (role) =>
+                          DropdownMenuItem(value: role, child: Text(role)),
                     )
                     .toList(),
               ),
@@ -197,7 +252,9 @@ class _LoginState extends State<Login> {
                     ),
                   );
                 },
-                child: const Text('Forgot Password?', style: TextStyle(color: Colors.blue)),
+                child: Text('Forgot Password?',
+                    style: TextStyle(
+                        color: isDarkMode ? Colors.lightBlue : Colors.blue)),
               ),
               if (selectedRole == 'Customer')
                 TextButton(
@@ -205,11 +262,14 @@ class _LoginState extends State<Login> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => Registration(onThemeChanged: widget.onThemeChanged),
+                        builder: (context) =>
+                            Registration(onThemeChanged: widget.onThemeChanged),
                       ),
                     );
                   },
-                  child: const Text("Didn't Have an account yet?", style: TextStyle(color: Colors.blue)),
+                  child: Text("Didn't Have an account yet?",
+                      style: TextStyle(
+                          color: isDarkMode ? Colors.lightBlue : Colors.blue)),
                 ),
             ],
           ),
@@ -218,4 +278,3 @@ class _LoginState extends State<Login> {
     );
   }
 }
-

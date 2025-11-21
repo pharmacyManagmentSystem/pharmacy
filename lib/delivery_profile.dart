@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'myOrdersPage_delivery.dart';
 import 'services/database_service.dart';
 
 class DeliveryPersonProfilePage extends StatefulWidget {
@@ -15,8 +16,7 @@ class DeliveryPersonProfilePage extends StatefulWidget {
       _DeliveryPersonProfilePageState();
 }
 
-class _DeliveryPersonProfilePageState
-    extends State<DeliveryPersonProfilePage> {
+class _DeliveryPersonProfilePageState extends State<DeliveryPersonProfilePage> {
   String _name = '';
   String _email = '';
   String _phone = '';
@@ -54,6 +54,7 @@ class _DeliveryPersonProfilePageState
           _darkMode = data['darkMode'] ?? false;
           _loading = false;
         });
+        widget.onThemeChanged(_darkMode);
       } else {
         setState(() {
           _name = 'Delivery Person';
@@ -67,7 +68,6 @@ class _DeliveryPersonProfilePageState
     }
   }
 
-  // ✅ Updated Change Password Method
   void _showChangePasswordDialog() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -91,6 +91,7 @@ class _DeliveryPersonProfilePageState
                   obscureText: true,
                 ),
                 const SizedBox(height: 8),
+
                 TextField(
                   controller: newPasswordController,
                   decoration: const InputDecoration(labelText: 'New Password'),
@@ -100,7 +101,7 @@ class _DeliveryPersonProfilePageState
                 TextField(
                   controller: confirmPasswordController,
                   decoration:
-                  const InputDecoration(labelText: 'Repeat New Password'),
+                      const InputDecoration(labelText: 'Repeat New Password'),
                   obscureText: true,
                 ),
               ],
@@ -119,13 +120,14 @@ class _DeliveryPersonProfilePageState
 
                 if (newPassword != confirmPassword) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('New passwords do not match')),
+                    const SnackBar(
+                        content: Text('New passwords do not match ')),
                   );
                   return;
                 }
 
-                final passwordRegex = RegExp(
-                    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
+                final passwordRegex =
+                    RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$');
                 if (!passwordRegex.hasMatch(newPassword)) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -143,10 +145,8 @@ class _DeliveryPersonProfilePageState
                   );
                   await user.reauthenticateWithCredential(credential);
 
-                  // Update in Firebase Auth
                   await user.updatePassword(newPassword);
 
-                  // ✅ Update password in Firebase Realtime Database
                   await DatabaseService.instance
                       .ref('pharmacy/delivery_persons/${user.uid}')
                       .update({'password': newPassword});
@@ -170,7 +170,9 @@ class _DeliveryPersonProfilePageState
                 }
               },
               child: const Text('Change Password'),
+
             ),
+
           ],
         );
       },
@@ -234,6 +236,20 @@ class _DeliveryPersonProfilePageState
             const SizedBox(height: 24),
             const _SectionTitle('Quick actions'),
             ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyOrdersPage(),
+                  ),
+                );
+              },
+              child: const Text('My Orders'),
+
+            ),
+            const SizedBox(height: 12),
+
+            ElevatedButton(
               onPressed: _showChangePasswordDialog,
               child: const Text('Change Password'),
             ),
@@ -274,8 +290,7 @@ class _DeliveryPersonProfilePageState
                 const SizedBox(height: 12),
                 TextField(
                   controller: phoneController,
-                  decoration:
-                  const InputDecoration(labelText: 'Phone Number'),
+                  decoration: const InputDecoration(labelText: 'Phone Number'),
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 20),
@@ -397,9 +412,9 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       label,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-        letterSpacing: 0.2,
-      ),
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.2,
+          ),
     );
   }
 }

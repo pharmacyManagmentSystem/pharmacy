@@ -15,9 +15,13 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final formKey = GlobalKey<FormState>();
   final DatabaseReference dbRef = DatabaseService.instance.root();
   bool loading = false;
-
   String selectedRole = 'Customer';
-  final List<String> roles = ['Customer', 'Pharmacist', 'Delivery Person', 'Admin'];
+  final List<String> roles = [
+    'Customer',
+    'Pharmacist',
+    'Delivery Person',
+    'Admin'
+  ];
 
   Future<void> resetPassword() async {
     if (!formKey.currentState!.validate()) return;
@@ -26,7 +30,6 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     final email = emailController.text.trim();
     late final String path;
-
     switch (selectedRole) {
       case 'Pharmacist':
         path = 'pharmacists';
@@ -53,6 +56,7 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
       bool emailExists = false;
       final data = event.snapshot.value;
+
       if (data is Map) {
         emailExists = data.values.any(
           (user) => user is Map && user['email'] == email,
@@ -131,7 +135,8 @@ class ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   border: OutlineInputBorder(),
                 ),
                 items: roles
-                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                    .map((role) =>
+                        DropdownMenuItem(value: role, child: Text(role)))
                     .toList(),
               ),
               const SizedBox(height: 20),

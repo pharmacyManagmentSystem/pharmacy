@@ -4,6 +4,10 @@
     <!-- For Android 13+ use READ_MEDIA_IMAGES instead of READ_EXTERNAL_STORAGE -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Location permissions for Google Maps -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="pharm"
         android:name="${applicationName}"
@@ -35,6 +39,7 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- OpenStreetMap - No API key needed! -->
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

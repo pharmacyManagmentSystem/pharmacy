@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
+
 import 'login.dart';
 import 'manage_pharmacy.dart';
 import 'manage_customers.dart';
 import 'manage_delivery.dart';
+import 'admin_reports_page.dart';
 
 class AdminHome extends StatelessWidget {
   final Function(bool) onThemeChanged;
+
   const AdminHome({super.key, required this.onThemeChanged});
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFB3E5FC), // Baby blue background
+      backgroundColor: isDarkMode ? Colors.grey[900] : const Color(0xFFB3E5FC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0288D1), // White app bar
+        backgroundColor:
+            isDarkMode ? Colors.grey[850] : const Color(0xFF0288D1),
         elevation: 4,
         title: Row(
           children: [
             Image.asset(
-              'assets/pharmacy.jpg', // pharmacy logo
+              'assets/pharmacy.jpg',
               height: 40,
               width: 40,
             ),
@@ -28,19 +33,20 @@ class AdminHome extends StatelessWidget {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white, // Black text on white background
+                color: Colors.white,
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
+            icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => Login(onThemeChanged: onThemeChanged)),
+                    builder: (context) =>
+                        Login(onThemeChanged: onThemeChanged)),
               );
             },
           ),
@@ -85,6 +91,18 @@ class AdminHome extends StatelessWidget {
                 );
               },
             ),
+            const SizedBox(height: 20),
+            AdminCard(
+              title: "Reports & Analytics",
+              imagePath: 'assets/pharmacy.jpg',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AdminReportsPage()),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -109,7 +127,7 @@ class AdminCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Card(
-        color: const Color(0xFF0288D1), // Blue card
+        color: const Color(0xFF0288D1),
         elevation: 6,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
